@@ -34,12 +34,21 @@ Route::post('/logout', [AuthController::class, 'logout'])
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth.session')->group(function () {
-
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
     Route::get('/input-data', [DashboardController::class, 'inputData'])
         ->name('input.data');
+    
+    Route::post('/upload/kedatangan', [DashboardController::class, 'uploadKedatangan'])
+        ->name('upload.kedatangan');
+    
+    Route::post('/upload/muat', [DashboardController::class, 'uploadMuat'])
+        ->name('upload.muat');
+    
+    Route::post('/preview/upload', [DashboardController::class, 'previewUpload'])
+        ->name('preview.upload')
+        ->withoutMiddleware('auth.session');
 
     Route::get('/preview-data', [DashboardController::class, 'previewData'])
         ->name('preview.data');

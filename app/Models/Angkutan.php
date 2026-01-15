@@ -9,26 +9,25 @@ class Angkutan extends Model
     protected $table = 'angkutan';
 
     protected $fillable = [
-        'customer_id',
-        'station_id',
-        'tanggal_keberangkatan',
+        'jenis_angkutan',
+        'nama_customer',
+        'stasiun_asal_sa',
+        'stasiun_tujuan_sa',
+        'nama_ka_stasiun_asal',
+        'tanggal_keberangkatan_asal_ka',
         'nomor_sarana',
-        'tonase',
-        'koli',
-        'sumber_file'
+        'volume_berat_kai',
+        'banyaknya_pengajuan',
+        'status_sa'
     ];
 
     protected $casts = [
-        'tanggal_keberangkatan' => 'date'
+        'tanggal_keberangkatan_asal_ka' => 'date',
+        'volume_berat_kai' => 'decimal:2'
     ];
 
     public function customer()
     {
-        return $this->belongsTo(Customer::class);
-    }
-
-    public function station()
-    {
-        return $this->belongsTo(Station::class);
+        return $this->belongsTo(Customer::class, 'nama_customer', 'nama_customer');
     }
 }
