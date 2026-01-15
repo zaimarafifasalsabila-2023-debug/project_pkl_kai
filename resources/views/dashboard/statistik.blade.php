@@ -5,228 +5,505 @@
 @section('header', 'Dashboard Statistik')
 
 @section('content')
-<!-- Summary Cards -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-gray-500 text-sm">Total Pengiriman Bulan Ini</p>
-                <p class="text-2xl font-bold text-gray-800">156</p>
-            </div>
-            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <i class="fas fa-box text-blue-600"></i>
-            </div>
-        </div>
-    </div>
-    
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-gray-500 text-sm">Pendapatan Bulan Ini</p>
-                <p class="text-2xl font-bold text-gray-800">Rp 45.2M</p>
-            </div>
-            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <i class="fas fa-money-bill-wave text-green-600"></i>
-            </div>
-        </div>
-    </div>
-    
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-gray-500 text-sm">Rata-rata Berat</p>
-                <p class="text-2xl font-bold text-gray-800">4.2 kg</p>
-            </div>
-            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <i class="fas fa-weight text-purple-600"></i>
-            </div>
-        </div>
-    </div>
-    
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <p class="text-gray-500 text-sm">Customer Aktif</p>
-                <p class="text-2xl font-bold text-gray-800">89</p>
-            </div>
-            <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                <i class="fas fa-users text-orange-600"></i>
-            </div>
-        </div>
-    </div>
-</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div id="section-kedatangan" class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Bar Chart – Volume Kedatangan</h3>
+            <div class="flex items-end gap-3">
+                <div class="flex gap-2">
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartKedatangan" data-type="png">PNG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartKedatangan" data-type="jpeg">JPEG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartKedatangan" data-type="jpg">JPG</button>
+                </div>
 
-<!-- Charts -->
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-    <!-- Monthly Trend Chart -->
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">Trend Pengiriman Bulanan</h3>
-        <canvas id="monthlyChart" width="400" height="200"></canvas>
-    </div>
-    
-    <!-- Station Distribution Chart -->
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">Distribusi per Stasiun</h3>
-        <canvas id="stationChart" width="400" height="200"></canvas>
-    </div>
-</div>
+                <form method="GET" action="{{ route('statistik') }}#section-kedatangan" class="stat-form flex gap-3 items-end">
+                <input type="hidden" name="tahun_muat" value="{{ request('tahun_muat', $tahunMuat ?? now()->year) }}">
+                <input type="hidden" name="mitra_bulan" value="{{ request('mitra_bulan', $mitraBulan ?? now()->month) }}">
+                <input type="hidden" name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}">
+                <input type="hidden" name="sa_bulan" value="{{ request('sa_bulan', $saBulan ?? now()->month) }}">
+                <input type="hidden" name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}">
+                <input type="hidden" name="top_customer_jenis" value="{{ request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') }}">
+                <input type="hidden" name="top_customer_mode" value="{{ request('top_customer_mode', $topCustomerMode ?? 'volume') }}">
+                <input type="hidden" name="top_customer_bulan" value="{{ request('top_customer_bulan', $topCustomerBulan ?? now()->month) }}">
+                <input type="hidden" name="top_customer_tahun" value="{{ request('top_customer_tahun', $topCustomerTahun ?? now()->year) }}">
 
-<!-- Service Type Statistics -->
-<div class="bg-white rounded-lg shadow-md p-6 mb-8">
-    <h3 class="text-lg font-semibold text-gray-800 mb-4">Statistik Jenis Layanan</h3>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="text-center">
-            <div class="relative inline-flex items-center justify-center w-32 h-32 mb-4">
-                <canvas id="regulerChart" width="128" height="128"></canvas>
-            </div>
-            <h4 class="font-semibold text-gray-800">Reguler</h4>
-            <p class="text-2xl font-bold text-blue-600">68%</p>
-            <p class="text-sm text-gray-600">106 pengiriman</p>
-        </div>
-        
-        <div class="text-center">
-            <div class="relative inline-flex items-center justify-center w-32 h-32 mb-4">
-                <canvas id="ekspresChart" width="128" height="128"></canvas>
-            </div>
-            <h4 class="font-semibold text-gray-800">Ekspres</h4>
-            <p class="text-2xl font-bold text-green-600">22%</p>
-            <p class="text-sm text-gray-600">34 pengiriman</p>
-        </div>
-        
-        <div class="text-center">
-            <div class="relative inline-flex items-center justify-center w-32 h-32 mb-4">
-                <canvas id="kargoChart" width="128" height="128"></canvas>
-            </div>
-            <h4 class="font-semibold text-gray-800">Kargo</h4>
-            <p class="text-2xl font-bold text-purple-600">10%</p>
-            <p class="text-sm text-gray-600">16 pengiriman</p>
-        </div>
-    </div>
-</div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Tahun</label>
+                    <input name="tahun_kedatangan" value="{{ request('tahun_kedatangan', $tahunKedatangan ?? now()->year) }}" type="number" min="2000" max="2100" class="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                </div>
 
-<!-- Top Routes -->
-<div class="bg-white rounded-lg shadow-md p-6">
-    <h3 class="text-lg font-semibold text-gray-800 mb-4">Rute Terpopuler</h3>
-    <div class="space-y-4">
-        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div class="flex items-center">
-                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                    <i class="fas fa-train text-blue-600"></i>
-                </div>
-                <div>
-                    <p class="font-medium text-gray-800">Jakarta - Surabaya</p>
-                    <p class="text-sm text-gray-600">45 pengiriman</p>
-                </div>
-            </div>
-            <div class="text-right">
-                <p class="text-lg font-semibold text-gray-800">Rp 15.2M</p>
-                <p class="text-sm text-green-600">+12%</p>
+                <button type="submit" class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
+                    <i class="fas fa-filter mr-2"></i>
+                    Terapkan
+                </button>
+                </form>
             </div>
         </div>
-        
-        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div class="flex items-center">
-                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4">
-                    <i class="fas fa-train text-green-600"></i>
+
+        <canvas id="chartKedatangan" height="120"></canvas>
+    </div>
+
+    <div id="section-muat" class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Bar Chart – Volume Muat</h3>
+            <div class="flex items-end gap-3">
+                <div class="flex gap-2">
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartMuat" data-type="png">PNG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartMuat" data-type="jpeg">JPEG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartMuat" data-type="jpg">JPG</button>
                 </div>
+
+                <form method="GET" action="{{ route('statistik') }}#section-muat" class="stat-form flex gap-3 items-end">
+                <input type="hidden" name="tahun_kedatangan" value="{{ request('tahun_kedatangan', $tahunKedatangan ?? now()->year) }}">
+                <input type="hidden" name="mitra_bulan" value="{{ request('mitra_bulan', $mitraBulan ?? now()->month) }}">
+                <input type="hidden" name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}">
+                <input type="hidden" name="sa_bulan" value="{{ request('sa_bulan', $saBulan ?? now()->month) }}">
+                <input type="hidden" name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}">
+                <input type="hidden" name="top_customer_jenis" value="{{ request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') }}">
+                <input type="hidden" name="top_customer_mode" value="{{ request('top_customer_mode', $topCustomerMode ?? 'volume') }}">
+                <input type="hidden" name="top_customer_bulan" value="{{ request('top_customer_bulan', $topCustomerBulan ?? now()->month) }}">
+                <input type="hidden" name="top_customer_tahun" value="{{ request('top_customer_tahun', $topCustomerTahun ?? now()->year) }}">
+
                 <div>
-                    <p class="font-medium text-gray-800">Bandung - Yogyakarta</p>
-                    <p class="text-sm text-gray-600">32 pengiriman</p>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Tahun</label>
+                    <input name="tahun_muat" value="{{ request('tahun_muat', $tahunMuat ?? now()->year) }}" type="number" min="2000" max="2100" class="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
                 </div>
-            </div>
-            <div class="text-right">
-                <p class="text-lg font-semibold text-gray-800">Rp 8.7M</p>
-                <p class="text-sm text-green-600">+8%</p>
+
+                <button type="submit" class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
+                    <i class="fas fa-filter mr-2"></i>
+                    Terapkan
+                </button>
+                </form>
             </div>
         </div>
-        
-        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div class="flex items-center">
-                <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-4">
-                    <i class="fas fa-train text-purple-600"></i>
+
+        <canvas id="chartMuat" height="120"></canvas>
+    </div>
+
+    <div id="section-mitra" class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Horizontal Bar Chart – Volume per Mitra (Bulanan)</h3>
+            <div class="flex flex-wrap items-end gap-3">
+                <div class="flex gap-2">
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartMitra" data-type="png">PNG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartMitra" data-type="jpeg">JPEG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartMitra" data-type="jpg">JPG</button>
                 </div>
+
+                <form method="GET" action="{{ route('statistik') }}#section-mitra" class="stat-form flex flex-wrap gap-3 items-end">
+                <input type="hidden" name="tahun_kedatangan" value="{{ request('tahun_kedatangan', $tahunKedatangan ?? now()->year) }}">
+                <input type="hidden" name="tahun_muat" value="{{ request('tahun_muat', $tahunMuat ?? now()->year) }}">
+                <input type="hidden" name="sa_bulan" value="{{ request('sa_bulan', $saBulan ?? now()->month) }}">
+                <input type="hidden" name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}">
+                <input type="hidden" name="top_customer_jenis" value="{{ request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') }}">
+                <input type="hidden" name="top_customer_mode" value="{{ request('top_customer_mode', $topCustomerMode ?? 'volume') }}">
+                <input type="hidden" name="top_customer_bulan" value="{{ request('top_customer_bulan', $topCustomerBulan ?? now()->month) }}">
+                <input type="hidden" name="top_customer_tahun" value="{{ request('top_customer_tahun', $topCustomerTahun ?? now()->year) }}">
+
                 <div>
-                    <p class="font-medium text-gray-800">Surabaya - Malang</p>
-                    <p class="text-sm text-gray-600">28 pengiriman</p>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Bulan</label>
+                    <select name="mitra_bulan" class="w-36 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                        @foreach ([1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',5=>'Mei',6=>'Jun',7=>'Jul',8=>'Agu',9=>'Sep',10=>'Okt',11=>'Nov',12=>'Des'] as $m => $label)
+                            <option value="{{ $m }}" @selected((int)request('mitra_bulan', $mitraBulan ?? now()->month) === $m)>{{ $label }}</option>
+                        @endforeach
+                    </select>
                 </div>
-            </div>
-            <div class="text-right">
-                <p class="text-lg font-semibold text-gray-800">Rp 6.3M</p>
-                <p class="text-sm text-red-600">-3%</p>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Tahun</label>
+                    <input name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}" type="number" min="2000" max="2100" class="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                </div>
+
+                <button type="submit" class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
+                    <i class="fas fa-filter mr-2"></i>
+                    Terapkan
+                </button>
+                </form>
             </div>
         </div>
+        <canvas id="chartMitra" height="180"></canvas>
+    </div>
+
+    <div id="section-year-compare" class="bg-white rounded-lg shadow-md p-6">
+        <div class="flex items-end justify-between gap-3 mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Line Chart – Perbandingan Volume Tahunan</h3>
+            <div class="flex gap-2">
+                <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartYearCompare" data-type="png">PNG</button>
+                <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartYearCompare" data-type="jpeg">JPEG</button>
+                <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartYearCompare" data-type="jpg">JPG</button>
+            </div>
+        </div>
+        <canvas id="chartYearCompare" height="140"></canvas>
+    </div>
+
+    <div id="section-sa-harian" class="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800">Line Chart – Jumlah SA per Hari</h3>
+                <p class="text-sm text-gray-500">Toggle: Kedatangan / Muat / Keduanya</p>
+            </div>
+
+            <div class="flex flex-wrap items-end gap-3">
+                <div class="flex gap-2">
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartSaHarian" data-type="png">PNG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartSaHarian" data-type="jpeg">JPEG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartSaHarian" data-type="jpg">JPG</button>
+                </div>
+
+                <form method="GET" action="{{ route('statistik') }}#section-sa-harian" class="stat-form flex flex-wrap gap-3 items-end">
+                <input type="hidden" name="tahun_kedatangan" value="{{ request('tahun_kedatangan', $tahunKedatangan ?? now()->year) }}">
+                <input type="hidden" name="tahun_muat" value="{{ request('tahun_muat', $tahunMuat ?? now()->year) }}">
+                <input type="hidden" name="mitra_bulan" value="{{ request('mitra_bulan', $mitraBulan ?? now()->month) }}">
+                <input type="hidden" name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}">
+                <input type="hidden" name="top_customer_jenis" value="{{ request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') }}">
+                <input type="hidden" name="top_customer_mode" value="{{ request('top_customer_mode', $topCustomerMode ?? 'volume') }}">
+                <input type="hidden" name="top_customer_bulan" value="{{ request('top_customer_bulan', $topCustomerBulan ?? now()->month) }}">
+                <input type="hidden" name="top_customer_tahun" value="{{ request('top_customer_tahun', $topCustomerTahun ?? now()->year) }}">
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Bulan</label>
+                    <select name="sa_bulan" class="w-36 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                        @foreach ([1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',5=>'Mei',6=>'Jun',7=>'Jul',8=>'Agu',9=>'Sep',10=>'Okt',11=>'Nov',12=>'Des'] as $m => $label)
+                            <option value="{{ $m }}" @selected((int)request('sa_bulan', $saBulan ?? now()->month) === $m)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Tahun</label>
+                    <input name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}" type="number" min="2000" max="2100" class="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                </div>
+
+                <button type="submit" class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
+                    <i class="fas fa-filter mr-2"></i>
+                    Terapkan
+                </button>
+            </form>
+        </div>
+
+        <div class="flex gap-2 mb-3">
+            <button type="button" data-sa-toggle="both" class="sa-toggle px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Keduanya</button>
+            <button type="button" data-sa-toggle="kedatangan" class="sa-toggle px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Kedatangan</button>
+            <button type="button" data-sa-toggle="muat" class="sa-toggle px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Muat</button>
+        </div>
+
+        <canvas id="chartSaHarian" height="140"></canvas>
+    </div>
+
+    <div id="section-top-customer" class="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
+            <h3 class="text-lg font-semibold text-gray-800">Bar Chart – Top Customer</h3>
+
+            <div class="flex flex-wrap items-end gap-3">
+                <div class="flex gap-2">
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartTopCustomer" data-type="png">PNG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartTopCustomer" data-type="jpeg">JPEG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartTopCustomer" data-type="jpg">JPG</button>
+                </div>
+
+                <form method="GET" action="{{ route('statistik') }}#section-top-customer" class="stat-form flex flex-wrap gap-3 items-end">
+                <input type="hidden" name="tahun_kedatangan" value="{{ request('tahun_kedatangan', $tahunKedatangan ?? now()->year) }}">
+                <input type="hidden" name="tahun_muat" value="{{ request('tahun_muat', $tahunMuat ?? now()->year) }}">
+                <input type="hidden" name="mitra_bulan" value="{{ request('mitra_bulan', $mitraBulan ?? now()->month) }}">
+                <input type="hidden" name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}">
+                <input type="hidden" name="sa_bulan" value="{{ request('sa_bulan', $saBulan ?? now()->month) }}">
+                <input type="hidden" name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}">
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
+                    <select name="top_customer_jenis" class="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                        <option value="kedatangan" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'kedatangan')>Kedatangan</option>
+                        <option value="muat" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'muat')>Muat</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Mode</label>
+                    <select name="top_customer_mode" class="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                        <option value="volume" @selected(request('top_customer_mode', $topCustomerMode ?? 'volume') === 'volume')>Volume</option>
+                        <option value="sa" @selected(request('top_customer_mode', $topCustomerMode ?? 'volume') === 'sa')>Jumlah SA</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Bulan</label>
+                    <select name="top_customer_bulan" class="w-36 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                        @foreach ([1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',5=>'Mei',6=>'Jun',7=>'Jul',8=>'Agu',9=>'Sep',10=>'Okt',11=>'Nov',12=>'Des'] as $m => $label)
+                            <option value="{{ $m }}" @selected((int)request('top_customer_bulan', $topCustomerBulan ?? now()->month) === $m)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Tahun</label>
+                    <input name="top_customer_tahun" value="{{ request('top_customer_tahun', $topCustomerTahun ?? now()->year) }}" type="number" min="2000" max="2100" class="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                </div>
+
+                <button type="submit" class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
+                    <i class="fas fa-filter mr-2"></i>
+                    Terapkan
+                </button>
+            </form>
+        </div>
+
+        <canvas id="chartTopCustomer" height="140"></canvas>
     </div>
 </div>
 
 <script>
-    // Monthly Trend Chart
-    const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
-    new Chart(monthlyCtx, {
-        type: 'line',
-        data: {
-            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'],
-            datasets: [{
-                label: 'Pengiriman',
-                data: [120, 135, 125, 145, 160, 156],
-                borderColor: 'rgb(147, 51, 234)',
-                backgroundColor: 'rgba(147, 51, 234, 0.1)',
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
+document.addEventListener('DOMContentLoaded', function () {
+    const css = getComputedStyle(document.documentElement);
+    const kaiOrange = css.getPropertyValue('--kai-orange').trim() || '#FF6B35';
+    const kaiNavy = css.getPropertyValue('--kai-navy').trim() || '#1E3A5F';
+    const kaiOrangeLight = css.getPropertyValue('--kai-orange-light').trim() || '#FF8C5A';
+    const kaiNavyLight = css.getPropertyValue('--kai-navy-light').trim() || '#2C4E7C';
+
+    const scrollToHash = () => {
+        const hash = window.location.hash;
+        if (!hash) return;
+        const el = document.querySelector(hash);
+        if (!el) return;
+        const y = el.getBoundingClientRect().top + window.pageYOffset - 90;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+    };
+
+    setTimeout(scrollToHash, 10);
+
+    const downloadCanvasImage = (canvas, mime, filename) => {
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = canvas.width;
+        exportCanvas.height = canvas.height;
+        const ctx = exportCanvas.getContext('2d');
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+        ctx.drawImage(canvas, 0, 0);
+
+        const dataUrl = exportCanvas.toDataURL(mime, 0.92);
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    document.querySelectorAll('.chart-download').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const canvasId = btn.getAttribute('data-canvas');
+            const type = (btn.getAttribute('data-type') || 'png').toLowerCase();
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+
+            const mime = type === 'png' ? 'image/png' : 'image/jpeg';
+            const ext = type === 'png' ? 'png' : (type === 'jpg' ? 'jpg' : 'jpeg');
+            downloadCanvasImage(canvas, mime, `${canvasId}.${ext}`);
+        });
     });
 
-    // Station Distribution Chart
-    const stationCtx = document.getElementById('stationChart').getContext('2d');
-    new Chart(stationCtx, {
-        type: 'doughnut',
-        data: {
-            labels: ['Gambir', 'Bandung', 'Yogyakarta', 'Surabaya', 'Malang'],
-            datasets: [{
-                data: [35, 25, 20, 15, 5],
-                backgroundColor: [
-                    'rgb(59, 130, 246)',
-                    'rgb(34, 197, 94)',
-                    'rgb(147, 51, 234)',
-                    'rgb(251, 146, 60)',
-                    'rgb(239, 68, 68)'
-                ]
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
+    const labels = @json($bulanLabels);
 
-    // Service Charts
-    const createDoughnutChart = (elementId, percentage, color) => {
-        const ctx = document.getElementById(elementId).getContext('2d');
-        new Chart(ctx, {
-            type: 'doughnut',
+    const commonOptions = {
+        responsive: true,
+        plugins: {
+            legend: { position: 'bottom' }
+        },
+        scales: {
+            y: { beginAtZero: true }
+        }
+    };
+
+    const kedatanganEl = document.getElementById('chartKedatangan');
+    if (kedatanganEl) {
+        new Chart(kedatanganEl, {
+            type: 'bar',
             data: {
+                labels,
+                datasets: [
+                    { label: 'SBI', data: @json($kedatanganSBI), backgroundColor: kaiNavy },
+                    { label: 'BBT', data: @json($kedatanganBBT), backgroundColor: kaiOrange },
+                    { label: 'BJ', data: @json($kedatanganBJ), backgroundColor: kaiOrangeLight }
+                ]
+            },
+            options: {
+                ...commonOptions,
+                datasets: {
+                    bar: {
+                        barPercentage: 0.9,
+                        categoryPercentage: 0.7
+                    }
+                }
+            }
+        });
+    }
+
+    const muatEl = document.getElementById('chartMuat');
+    if (muatEl) {
+        new Chart(muatEl, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'SBI', data: @json($muatSBI), backgroundColor: kaiNavy },
+                    { label: 'BBT', data: @json($muatBBT), backgroundColor: kaiOrange },
+                    { label: 'BJ', data: @json($muatBJ), backgroundColor: kaiOrangeLight }
+                ]
+            },
+            options: {
+                ...commonOptions,
+                datasets: {
+                    bar: {
+                        barPercentage: 0.9,
+                        categoryPercentage: 0.7
+                    }
+                }
+            }
+        });
+    }
+
+    const mitraEl = document.getElementById('chartMitra');
+    if (mitraEl) {
+        new Chart(mitraEl, {
+            type: 'bar',
+            data: {
+                labels: @json($mitraLabels),
                 datasets: [{
-                    data: [percentage, 100 - percentage],
-                    backgroundColor: [color, '#e5e7eb'],
-                    borderWidth: 0
+                    label: 'Total Volume (kg)',
+                    data: @json($mitraVolumes),
+                    backgroundColor: kaiOrange,
                 }]
             },
             options: {
-                responsive: false,
-                cutout: '70%',
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: false }
-                }
+                indexAxis: 'y',
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true } }
+            }
+        });
+    }
+
+    const yearCompareEl = document.getElementById('chartYearCompare');
+    if (yearCompareEl) {
+        new Chart(yearCompareEl, {
+            type: 'line',
+            data: {
+                labels: @json($years),
+                datasets: [
+                    {
+                        label: 'Kedatangan',
+                        data: @json($volYearKedatangan),
+                        borderColor: kaiNavy,
+                        backgroundColor: kaiNavy,
+                        tension: 0.25,
+                    },
+                    {
+                        label: 'Muat',
+                        data: @json($volYearMuat),
+                        borderColor: kaiOrange,
+                        backgroundColor: kaiOrange,
+                        tension: 0.25,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    const saDates = @json($harianDates);
+    const saKed = @json($harianKedatangan);
+    const saMuat = @json($harianMuat);
+
+    const saEl = document.getElementById('chartSaHarian');
+    let saChart;
+    if (saEl) {
+        saChart = new Chart(saEl, {
+            type: 'line',
+            data: {
+                labels: saDates,
+                datasets: [
+                    {
+                        label: 'Kedatangan',
+                        data: saKed,
+                        borderColor: kaiNavy,
+                        backgroundColor: kaiNavy,
+                        tension: 0.25,
+                    },
+                    {
+                        label: 'Muat',
+                        data: saMuat,
+                        borderColor: kaiOrange,
+                        backgroundColor: kaiOrange,
+                        tension: 0.25,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    const setToggleActive = (mode) => {
+        document.querySelectorAll('.sa-toggle').forEach(btn => {
+            if (btn.getAttribute('data-sa-toggle') === mode) {
+                btn.classList.add('bg-kai-orange', 'text-white');
+                btn.classList.remove('border-gray-300');
+            } else {
+                btn.classList.remove('bg-kai-orange', 'text-white');
+                btn.classList.add('border-gray-300');
             }
         });
     };
 
-    createDoughnutChart('regulerChart', 68, 'rgb(59, 130, 246)');
-    createDoughnutChart('ekspresChart', 22, 'rgb(34, 197, 94)');
-    createDoughnutChart('kargoChart', 10, 'rgb(147, 51, 234)');
+    setToggleActive('both');
+
+    document.querySelectorAll('.sa-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-sa-toggle');
+            setToggleActive(mode);
+            if (!saChart) return;
+
+            if (mode === 'both') {
+                saChart.data.datasets[0].hidden = false;
+                saChart.data.datasets[1].hidden = false;
+            }
+            if (mode === 'kedatangan') {
+                saChart.data.datasets[0].hidden = false;
+                saChart.data.datasets[1].hidden = true;
+            }
+            if (mode === 'muat') {
+                saChart.data.datasets[0].hidden = true;
+                saChart.data.datasets[1].hidden = false;
+            }
+            saChart.update();
+        });
+    });
+
+    const topCustomerEl = document.getElementById('chartTopCustomer');
+    if (topCustomerEl) {
+        new Chart(topCustomerEl, {
+            type: 'bar',
+            data: {
+                labels: @json($topCustomerLabels),
+                datasets: [{
+                    label: 'Top Customer',
+                    data: @json($topCustomerValues),
+                    backgroundColor: kaiNavyLight,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+});
 </script>
 @endsection

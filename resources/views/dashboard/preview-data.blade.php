@@ -20,24 +20,69 @@
 
 <!-- Filter Section -->
 <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-    <div class="flex flex-wrap items-center justify-between gap-4">
+    <form method="GET" action="{{ route('preview.data') }}" class="flex flex-wrap items-end justify-between gap-4">
         <h3 class="text-lg font-semibold text-gray-800">Filter Data</h3>
-        <div class="flex flex-wrap gap-3">
-            <input type="text" placeholder="Cari nomor resi..." class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
-            <input type="date" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
-            <select class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
-                <option value="">Semua Stasiun</option>
-                <option value="Gambir">Gambir</option>
-                <option value="Bandung">Bandung</option>
-                <option value="Yogyakarta">Yogyakarta</option>
-                <option value="Surabaya">Surabaya</option>
-            </select>
-            <button class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
+
+        <div class="flex flex-wrap gap-3 items-end">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Nomor Sarana</label>
+                <input name="nomor_sarana" value="{{ request('nomor_sarana') }}" type="text" placeholder="Cari nomor sarana..." class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Tanggal</label>
+                <input name="tanggal" value="{{ request('tanggal') }}" type="date" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Nama Customer</label>
+                <select name="nama_customer" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                    <option value="">Semua Customer</option>
+                    @foreach (($customers ?? collect()) as $customer)
+                        <option value="{{ $customer }}" @selected(request('nama_customer') == $customer)>{{ $customer }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Stasiun Asal</label>
+                <select name="stasiun_asal_sa" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                    <option value="">Semua</option>
+                    @foreach (($stasiunAsalList ?? collect()) as $st)
+                        <option value="{{ $st }}" @selected(request('stasiun_asal_sa') == $st)>{{ $st }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Stasiun Tujuan</label>
+                <select name="stasiun_tujuan_sa" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                    <option value="">Semua</option>
+                    @foreach (($stasiunTujuanList ?? collect()) as $st)
+                        <option value="{{ $st }}" @selected(request('stasiun_tujuan_sa') == $st)>{{ $st }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Jenis Angkutan</label>
+                <select name="jenis_angkutan" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                    <option value="">Semua</option>
+                    <option value="kedatangan" @selected(request('jenis_angkutan') == 'kedatangan')>Kedatangan</option>
+                    <option value="muat" @selected(request('jenis_angkutan') == 'muat')>Muat</option>
+                </select>
+            </div>
+
+            <button type="submit" class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
                 <i class="fas fa-search mr-2"></i>
                 Cari
             </button>
+
+            <a href="{{ route('preview.data') }}" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition duration-200">
+                Reset
+            </a>
         </div>
-    </div>
+    </form>
 </div>
 
 <!-- Data Table -->
@@ -79,7 +124,7 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse ($data as $index => $item)
                 <tr class="hover:bg-gray-50">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $index + 1 }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ ($data->firstItem() ?? 0) + $index }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                             @if($item->jenis_angkutan == 'kedatangan') bg-blue-100 text-blue-800 
@@ -131,20 +176,12 @@
     
     <!-- Pagination -->
     <div class="px-6 py-4 border-t">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div class="text-sm text-gray-700">
-                Menampilkan <span class="font-medium">1</span> hingga <span class="font-medium">{{ $data->count() }}</span> dari <span class="font-medium">{{ $data->count() }}</span> data
+                Menampilkan <span class="font-medium">{{ $data->firstItem() ?? 0 }}</span> hingga <span class="font-medium">{{ $data->lastItem() ?? 0 }}</span> dari <span class="font-medium">{{ $data->total() }}</span> data
             </div>
-            <div class="flex gap-2">
-                <button class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50" disabled>
-                    <i class="fas fa-chevron-left"></i>
-                </button>
-                <button class="px-3 py-1 bg-kai-orange text-white rounded">1</button>
-                <button class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50">2</button>
-                <button class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50">3</button>
-                <button class="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50">
-                    <i class="fas fa-chevron-right"></i>
-                </button>
+            <div>
+                {{ $data->onEachSide(1)->links() }}
             </div>
         </div>
     </div>

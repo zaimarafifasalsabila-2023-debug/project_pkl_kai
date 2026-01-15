@@ -3,19 +3,158 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 use App\Models\Angkutan;
 use App\Models\Customer;
 use App\Models\Station;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $totalAngkutan = Angkutan::count();
         $totalCustomer = Customer::count();
         $totalStation = Station::count();
-        
+
         return view('dashboard.index', compact('totalAngkutan', 'totalCustomer', 'totalStation'));
+    }
+
+    public function exportDashboardExcel(Request $request)
+    {
+        $now = now();
+        $tahun = (int) ($request->input('tahun') ?? $now->year);
+        $bulanInput = $request->input('bulan');
+        $bulan = $bulanInput === null ? $now->month : ($bulanInput === '' ? null : (int) $bulanInput);
+        $jenis = $request->input('jenis');
+        $tanggalAwal = $request->input('tanggal_awal');
+        $tanggalAkhir = $request->input('tanggal_akhir');
+
+        $query = Angkutan::query();
+
+        if (!empty($jenis)) {
+            $query->where('jenis_angkutan', $jenis);
+        }
+
+        if (!empty($tanggalAwal) && !empty($tanggalAkhir)) {
+            $query->whereBetween('tanggal_keberangkatan_asal_ka', [$tanggalAwal, $tanggalAkhir]);
+        } else {
+            $query->whereYear('tanggal_keberangkatan_asal_ka', $tahun);
+            if (!empty($bulan)) {
+                $query->whereMonth('tanggal_keberangkatan_asal_ka', (int) $bulan);
+            }
+        }
+
+        if ($request->filled('status_sa')) {
+            $query->where('status_sa', $request->string('status_sa')->toString());
+        }
+
+        if ($request->filled('customer')) {
+            $query->where('nama_customer', $request->string('customer')->toString());
+        }
+
+        if ($request->filled('search')) {
+            $s = $request->string('search')->toString();
+            $query->where(function ($q) use ($s) {
+                $q->where('nomor_sarana', 'like', '%' . $s . '%')
+                    ->orWhere('nama_ka_stasiun_asal', 'like', '%' . $s . '%')
+                    ->orWhere('stasiun_asal_sa', 'like', '%' . $s . '%')
+                    ->orWhere('stasiun_tujuan_sa', 'like', '%' . $s . '%')
+                    ->orWhere('nama_customer', 'like', '%' . $s . '%');
+            });
+        }
+
+        $rows = $query
+            ->orderBy('tanggal_keberangkatan_asal_ka', 'desc')
+            ->get();
+
+        $fileName = 'dashboard-operasional.csv';
+
+        return response()->streamDownload(function () use ($rows) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'Tanggal',
+                'Customer',
+                'Stasiun Asal',
+                'Stasiun Tujuan',
+                'Nama KA',
+                'Nomor Sarana',
+                'Volume (kg)',
+                'Koli',
+                'Status',
+                'Jenis'
+            ]);
+
+            foreach ($rows as $item) {
+                fputcsv($out, [
+                    optional($item->tanggal_keberangkatan_asal_ka)->format('Y-m-d'),
+                    $item->nama_customer,
+                    $item->stasiun_asal_sa,
+                    $item->stasiun_tujuan_sa,
+                    $item->nama_ka_stasiun_asal,
+                    $item->nomor_sarana,
+                    (string) $item->volume_berat_kai,
+                    (string) $item->banyaknya_pengajuan,
+                    (string) $item->status_sa,
+                    (string) $item->jenis_angkutan,
+                ]);
+            }
+            fclose($out);
+        }, $fileName, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    public function exportDashboardPdf(Request $request)
+    {
+        $now = now();
+        $tahun = (int) ($request->input('tahun') ?? $now->year);
+        $bulanInput = $request->input('bulan');
+        $bulan = $bulanInput === null ? $now->month : ($bulanInput === '' ? null : (int) $bulanInput);
+        $jenis = $request->input('jenis');
+        $tanggalAwal = $request->input('tanggal_awal');
+        $tanggalAkhir = $request->input('tanggal_akhir');
+
+        $query = Angkutan::query();
+
+        if (!empty($jenis)) {
+            $query->where('jenis_angkutan', $jenis);
+        }
+
+        if (!empty($tanggalAwal) && !empty($tanggalAkhir)) {
+            $query->whereBetween('tanggal_keberangkatan_asal_ka', [$tanggalAwal, $tanggalAkhir]);
+        } else {
+            $query->whereYear('tanggal_keberangkatan_asal_ka', $tahun);
+            if (!empty($bulan)) {
+                $query->whereMonth('tanggal_keberangkatan_asal_ka', (int) $bulan);
+            }
+        }
+
+        if ($request->filled('status_sa')) {
+            $query->where('status_sa', $request->string('status_sa')->toString());
+        }
+
+        if ($request->filled('customer')) {
+            $query->where('nama_customer', $request->string('customer')->toString());
+        }
+
+        if ($request->filled('search')) {
+            $s = $request->string('search')->toString();
+            $query->where(function ($q) use ($s) {
+                $q->where('nomor_sarana', 'like', '%' . $s . '%')
+                    ->orWhere('nama_ka_stasiun_asal', 'like', '%' . $s . '%')
+                    ->orWhere('stasiun_asal_sa', 'like', '%' . $s . '%')
+                    ->orWhere('stasiun_tujuan_sa', 'like', '%' . $s . '%')
+                    ->orWhere('nama_customer', 'like', '%' . $s . '%');
+            });
+        }
+
+        $rows = $query
+            ->orderBy('tanggal_keberangkatan_asal_ka', 'desc')
+            ->limit(2000)
+            ->get();
+
+        return view('dashboard.export-pdf', compact('rows', 'tahun', 'bulan', 'jenis', 'tanggalAwal', 'tanggalAkhir'));
     }
 
     public function inputData()
@@ -23,28 +162,259 @@ class DashboardController extends Controller
         return view('dashboard.input-data');
     }
 
-    public function previewData()
+    public function previewData(Request $request)
     {
-        $data = Angkutan::orderBy('tanggal_keberangkatan_asal_ka', 'desc')->get();
-            
-        return view('dashboard.preview-data', compact('data'));
+        $query = Angkutan::query();
+
+        if ($request->filled('nomor_sarana')) {
+            $query->where('nomor_sarana', 'like', '%' . $request->string('nomor_sarana')->toString() . '%');
+        }
+
+        if ($request->filled('tanggal')) {
+            $query->whereDate('tanggal_keberangkatan_asal_ka', $request->string('tanggal')->toString());
+        }
+
+        if ($request->filled('nama_customer')) {
+            $query->where('nama_customer', 'like', '%' . $request->string('nama_customer')->toString() . '%');
+        }
+
+        if ($request->filled('stasiun_asal_sa')) {
+            $query->where('stasiun_asal_sa', $request->string('stasiun_asal_sa')->toString());
+        }
+
+        if ($request->filled('stasiun_tujuan_sa')) {
+            $query->where('stasiun_tujuan_sa', $request->string('stasiun_tujuan_sa')->toString());
+        }
+
+        if ($request->filled('jenis_angkutan')) {
+            $query->where('jenis_angkutan', $request->string('jenis_angkutan')->toString());
+        }
+
+        $data = $query
+            ->orderBy('tanggal_keberangkatan_asal_ka', 'desc')
+            ->paginate(20)
+            ->withQueryString();
+
+        $customers = Customer::query()
+            ->select('nama_customer')
+            ->distinct()
+            ->orderBy('nama_customer')
+            ->pluck('nama_customer');
+
+        $stasiunAsalList = Angkutan::query()
+            ->select('stasiun_asal_sa')
+            ->whereNotNull('stasiun_asal_sa')
+            ->distinct()
+            ->orderBy('stasiun_asal_sa')
+            ->pluck('stasiun_asal_sa');
+
+        $stasiunTujuanList = Angkutan::query()
+            ->select('stasiun_tujuan_sa')
+            ->whereNotNull('stasiun_tujuan_sa')
+            ->distinct()
+            ->orderBy('stasiun_tujuan_sa')
+            ->pluck('stasiun_tujuan_sa');
+
+        return view('dashboard.preview-data', compact('data', 'customers', 'stasiunAsalList', 'stasiunTujuanList'));
     }
 
-    public function statistik()
+    public function statistik(Request $request)
     {
-        // Data untuk statistik
-        $monthlyData = Angkutan::selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as month, COUNT(*) as count')
-            ->groupBy('month')
-            ->orderBy('month')
+        $now = now();
+
+        $tahunKedatangan = (int) ($request->input('tahun_kedatangan') ?? $now->year);
+        $tahunMuat = (int) ($request->input('tahun_muat') ?? $now->year);
+
+        $mitraTahun = (int) ($request->input('mitra_tahun') ?? $now->year);
+        $mitraBulan = (int) ($request->input('mitra_bulan') ?? $now->month);
+
+        $saTahun = (int) ($request->input('sa_tahun') ?? $now->year);
+        $saBulan = (int) ($request->input('sa_bulan') ?? $now->month);
+
+        $topCustomerJenis = (string) ($request->input('top_customer_jenis') ?? 'kedatangan');
+        $topCustomerMode = (string) ($request->input('top_customer_mode') ?? 'volume');
+        $topCustomerTahun = (int) ($request->input('top_customer_tahun') ?? $now->year);
+        $topCustomerBulan = (int) ($request->input('top_customer_bulan') ?? $now->month);
+
+        if (!in_array($topCustomerJenis, ['kedatangan', 'muat'], true)) {
+            $topCustomerJenis = 'kedatangan';
+        }
+        if (!in_array($topCustomerMode, ['volume', 'sa'], true)) {
+            $topCustomerMode = 'volume';
+        }
+
+        $bulanLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+        $buildMonthlyVolumeByStation = function (int $tahun, string $jenisAngkutan, string $field, string $stationCode) {
+            $rows = Angkutan::query()
+                ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
+                ->where('jenis_angkutan', $jenisAngkutan)
+                ->whereYear('tanggal_keberangkatan_asal_ka', $tahun)
+                ->whereNotNull('tanggal_keberangkatan_asal_ka')
+                ->whereRaw('UPPER(' . $field . ') LIKE ?', ['%' . strtoupper($stationCode) . '%'])
+                ->groupBy('bulan')
+                ->get();
+
+            $data = array_fill(0, 12, 0.0);
+            foreach ($rows as $r) {
+                $idx = ((int) $r->bulan) - 1;
+                if ($idx >= 0 && $idx < 12) {
+                    $data[$idx] = (float) $r->total;
+                }
+            }
+            return $data;
+        };
+
+        $kedatanganSBI = $buildMonthlyVolumeByStation($tahunKedatangan, 'kedatangan', 'stasiun_tujuan_sa', 'SBI');
+        $kedatanganBBT = $buildMonthlyVolumeByStation($tahunKedatangan, 'kedatangan', 'stasiun_tujuan_sa', 'BBT');
+        $kedatanganBJ = $buildMonthlyVolumeByStation($tahunKedatangan, 'kedatangan', 'stasiun_tujuan_sa', 'BJ');
+
+        $muatSBI = $buildMonthlyVolumeByStation($tahunMuat, 'muat', 'stasiun_asal_sa', 'SBI');
+        $muatBBT = $buildMonthlyVolumeByStation($tahunMuat, 'muat', 'stasiun_asal_sa', 'BBT');
+        $muatBJ = $buildMonthlyVolumeByStation($tahunMuat, 'muat', 'stasiun_asal_sa', 'BJ');
+
+        $mitraRows = Angkutan::query()
+            ->select('nama_customer')
+            ->selectRaw('SUM(volume_berat_kai) as total_volume')
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereYear('tanggal_keberangkatan_asal_ka', $mitraTahun)
+            ->whereMonth('tanggal_keberangkatan_asal_ka', $mitraBulan)
+            ->whereNotNull('nama_customer')
+            ->groupBy('nama_customer')
+            ->orderByDesc('total_volume')
+            ->limit(20)
             ->get();
-            
-        $stationData = Angkutan::all()
-            ->groupBy('nama_ka_stasiun_asal')
-            ->map(function($item) {
-                return $item->count();
-            });
-            
-        return view('dashboard.statistik', compact('monthlyData', 'stationData'));
+
+        $mitraLabels = $mitraRows->pluck('nama_customer')->values()->all();
+        $mitraVolumes = $mitraRows->pluck('total_volume')->map(fn ($v) => (float) $v)->values()->all();
+
+        $years = Angkutan::query()
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->selectRaw('DISTINCT YEAR(tanggal_keberangkatan_asal_ka) as tahun')
+            ->orderBy('tahun')
+            ->pluck('tahun')
+            ->map(fn ($y) => (int) $y)
+            ->values();
+
+        if ($years->isEmpty()) {
+            $years = collect([(int) $now->year]);
+        }
+
+        $kedatanganYearRows = Angkutan::query()
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->where('jenis_angkutan', 'kedatangan')
+            ->selectRaw('YEAR(tanggal_keberangkatan_asal_ka) as tahun, SUM(volume_berat_kai) as total')
+            ->groupBy('tahun')
+            ->get()
+            ->keyBy('tahun');
+
+        $muatYearRows = Angkutan::query()
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->where('jenis_angkutan', 'muat')
+            ->selectRaw('YEAR(tanggal_keberangkatan_asal_ka) as tahun, SUM(volume_berat_kai) as total')
+            ->groupBy('tahun')
+            ->get()
+            ->keyBy('tahun');
+
+        $volYearKedatangan = $years->map(function ($y) use ($kedatanganYearRows) {
+            return (float) (($kedatanganYearRows[$y]->total ?? 0) ?: 0);
+        })->values()->all();
+
+        $volYearMuat = $years->map(function ($y) use ($muatYearRows) {
+            return (float) (($muatYearRows[$y]->total ?? 0) ?: 0);
+        })->values()->all();
+
+        $start = Carbon::create($saTahun, $saBulan, 1)->startOfDay();
+        $end = (clone $start)->endOfMonth()->endOfDay();
+        $dateKeys = [];
+        $cursor = $start->copy();
+        while ($cursor->lte($end)) {
+            $dateKeys[] = $cursor->format('Y-m-d');
+            $cursor->addDay();
+        }
+
+        $harianKedRows = Angkutan::query()
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereBetween('tanggal_keberangkatan_asal_ka', [$start->toDateString(), $end->toDateString()])
+            ->where('jenis_angkutan', 'kedatangan')
+            ->selectRaw('DATE(tanggal_keberangkatan_asal_ka) as tgl, COUNT(*) as total')
+            ->groupBy('tgl')
+            ->orderBy('tgl')
+            ->get()
+            ->keyBy('tgl');
+
+        $harianMuatRows = Angkutan::query()
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereBetween('tanggal_keberangkatan_asal_ka', [$start->toDateString(), $end->toDateString()])
+            ->where('jenis_angkutan', 'muat')
+            ->selectRaw('DATE(tanggal_keberangkatan_asal_ka) as tgl, COUNT(*) as total')
+            ->groupBy('tgl')
+            ->orderBy('tgl')
+            ->get()
+            ->keyBy('tgl');
+
+        $harianDates = $dateKeys;
+        $harianKedatangan = [];
+        $harianMuat = [];
+        foreach ($dateKeys as $d) {
+            $harianKedatangan[] = (int) (($harianKedRows[$d]->total ?? 0) ?: 0);
+            $harianMuat[] = (int) (($harianMuatRows[$d]->total ?? 0) ?: 0);
+        }
+
+        $topCustomerQuery = Angkutan::query()
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->where('jenis_angkutan', $topCustomerJenis)
+            ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
+            ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
+            ->whereNotNull('nama_customer')
+            ->select('nama_customer')
+            ->groupBy('nama_customer');
+
+        if ($topCustomerMode === 'sa') {
+            $topCustomerQuery->selectRaw('COUNT(*) as total_metric');
+        } else {
+            $topCustomerQuery->selectRaw('SUM(volume_berat_kai) as total_metric');
+        }
+
+        $topCustomerRows = $topCustomerQuery
+            ->orderByDesc('total_metric')
+            ->limit(15)
+            ->get();
+
+        $topCustomerLabels = $topCustomerRows->pluck('nama_customer')->values()->all();
+        $topCustomerValues = $topCustomerRows->pluck('total_metric')->map(function ($v) use ($topCustomerMode) {
+            return $topCustomerMode === 'sa' ? (int) $v : (float) $v;
+        })->values()->all();
+
+        return view('dashboard.statistik', compact(
+            'bulanLabels',
+            'tahunKedatangan',
+            'tahunMuat',
+            'kedatanganSBI',
+            'kedatanganBBT',
+            'kedatanganBJ',
+            'muatSBI',
+            'muatBBT',
+            'muatBJ',
+            'mitraTahun',
+            'mitraBulan',
+            'mitraLabels',
+            'mitraVolumes',
+            'years',
+            'volYearKedatangan',
+            'volYearMuat',
+            'saTahun',
+            'saBulan',
+            'harianDates',
+            'harianKedatangan',
+            'harianMuat',
+            'topCustomerJenis',
+            'topCustomerMode',
+            'topCustomerTahun',
+            'topCustomerBulan',
+            'topCustomerLabels',
+            'topCustomerValues'
+        ));
     }
 
     public function uploadKedatangan(Request $request)
@@ -57,7 +427,9 @@ class DashboardController extends Controller
             $file = $request->file('file');
             $data = $this->processExcelFile($file, 'kedatangan');
             
-            return redirect()->route('preview.data')->with('success', "Berhasil upload {$data['count']} data kedatangan!");
+            return redirect()->route('input.data')
+                ->with('success', "Berhasil upload {$data['count']} data kedatangan!")
+                ->with('activeTab', 'kedatangan');
         } catch (\Exception $e) {
             return back()->with('error', 'Gagal memproses file: ' . $e->getMessage());
         }
@@ -73,7 +445,9 @@ class DashboardController extends Controller
             $file = $request->file('file');
             $data = $this->processExcelFile($file, 'muat');
             
-            return redirect()->route('preview.data')->with('success', "Berhasil upload {$data['count']} data muat!");
+            return redirect()->route('input.data')
+                ->with('success', "Berhasil upload {$data['count']} data muat!")
+                ->with('activeTab', 'muat');
         } catch (\Exception $e) {
             return back()->with('error', 'Gagal memproses file: ' . $e->getMessage());
         }

@@ -45,6 +45,19 @@
         .kai-orange-gradient {
             background: linear-gradient(135deg, var(--kai-orange) 0%, var(--kai-orange-dark) 100%);
         }
+
+        .kai-navy-gradient {
+            background: linear-gradient(135deg, var(--kai-navy) 0%, var(--kai-navy-light) 100%);
+        }
+
+        .bg-kai-orange { background-color: var(--kai-orange); }
+        .bg-kai-orange-dark { background-color: var(--kai-orange-dark); }
+        .bg-kai-navy { background-color: var(--kai-navy); }
+        .bg-kai-navy-light { background-color: var(--kai-navy-light); }
+
+        .text-kai-orange { color: var(--kai-orange); }
+        .text-kai-navy { color: var(--kai-navy); }
+        .border-kai-orange { border-color: var(--kai-orange); }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -123,10 +136,8 @@
             const toggleIcon = toggleBtn.querySelector('i');
             
             let isCollapsed = false;
-            
-            toggleBtn.addEventListener('click', function() {
-                isCollapsed = !isCollapsed;
-                
+
+            const applyState = () => {
                 if (isCollapsed) {
                     sidebar.classList.add('sidebar-collapsed');
                     mainContent.classList.add('main-content-expanded');
@@ -138,6 +149,26 @@
                     toggleIcon.classList.remove('fa-chevron-right');
                     toggleIcon.classList.add('fa-bars');
                 }
+            };
+
+            try {
+                isCollapsed = localStorage.getItem('sidebarCollapsed') === '1';
+            } catch (e) {
+                isCollapsed = false;
+            }
+
+            applyState();
+            
+            toggleBtn.addEventListener('click', function() {
+                isCollapsed = !isCollapsed;
+
+                try {
+                    localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0');
+                } catch (e) {
+                    // ignore
+                }
+
+                applyState();
             });
         });
     </script>

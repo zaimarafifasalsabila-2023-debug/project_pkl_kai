@@ -37,6 +37,12 @@ Route::middleware('auth.session')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
+    Route::get('/dashboard/export/excel', [DashboardController::class, 'exportDashboardExcel'])
+        ->name('dashboard.export.excel');
+
+    Route::get('/dashboard/export/pdf', [DashboardController::class, 'exportDashboardPdf'])
+        ->name('dashboard.export.pdf');
+
     Route::get('/input-data', [DashboardController::class, 'inputData'])
         ->name('input.data');
     
