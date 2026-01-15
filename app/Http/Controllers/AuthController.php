@@ -7,11 +7,13 @@ use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
+    // FORM LOGIN
     public function showLoginForm()
     {
         return view('auth.login');
     }
 
+    // PROSES LOGIN
     public function login(Request $request)
     {
         $credentials = $request->validate([
@@ -19,20 +21,22 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        // Untuk demo, gunakan username "admin" dengan password "admin123"
-        if ($credentials['username'] === 'admin' && $credentials['password'] === 'admin123') {
-            session(['user' => ['username' => 'admin', 'name' => 'Administrator']]);
-            return redirect()->intended('/dashboard');
+        // Use username field for authentication
+        if (Auth::attempt(['username' => $credentials['username'], 'password' => $credentials['password']])) {
+            $request->session()->regenerate();
+            return redirect()->route('dashboard');
         }
 
-        return back()->withErrors([
-            'error' => 'Username atau password salah.',
-        ])->withInput($request->except('password'));
+        return back()->with('error', 'Username atau password salah');
     }
 
+    // LOGOUT
     public function logout(Request $request)
     {
-        session()->forget('user');
-        return redirect('/login');
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login');
     }
 }
