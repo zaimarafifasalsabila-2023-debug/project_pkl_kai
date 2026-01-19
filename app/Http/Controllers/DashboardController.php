@@ -17,6 +17,15 @@ class DashboardController extends Controller
 
         $totalVolumeAll = (float) Angkutan::query()->sum('volume_berat_kai');
 
+        // New: Calculate volumes separately for Muat and Kedatangan
+        $totalVolumeMuat = (float) Angkutan::query()
+            ->where('jenis_angkutan', 'muat')
+            ->sum('volume_berat_kai');
+
+        $totalVolumeKedatangan = (float) Angkutan::query()
+            ->where('jenis_angkutan', 'kedatangan')
+            ->sum('volume_berat_kai');
+
         $muatVolumeSBI = (float) Angkutan::query()
             ->where('jenis_angkutan', 'muat')
             ->whereNotNull('stasiun_asal_sa')
@@ -38,6 +47,8 @@ class DashboardController extends Controller
         return view('dashboard.index', compact(
             'totalCustomer',
             'totalVolumeAll',
+            'totalVolumeMuat',
+            'totalVolumeKedatangan',
             'muatVolumeSBI',
             'muatVolumeBBT',
             'muatVolumeBJ'
@@ -214,6 +225,17 @@ class DashboardController extends Controller
             $query->where('jenis_angkutan', $request->string('jenis_angkutan')->toString());
         }
 
+        // If print parameter is present, return all data as JSON
+        if ($request->has('print')) {
+            $allData = $query
+                ->orderBy('tanggal_keberangkatan_asal_ka', 'desc')
+                ->get();
+            
+            return response()->json([
+                'data' => $allData
+            ]);
+        }
+
         $data = $query
             ->orderBy('tanggal_keberangkatan_asal_ka', 'desc')
             ->paginate(20)
@@ -254,11 +276,16 @@ class DashboardController extends Controller
 
         $saTahun = (int) ($request->input('sa_tahun') ?? $now->year);
         $saBulan = (int) ($request->input('sa_bulan') ?? $now->month);
+        $saJenis = (string) ($request->input('sa_jenis') ?? 'keduanya');
 
         $topCustomerJenis = (string) ($request->input('top_customer_jenis') ?? 'kedatangan');
         $topCustomerMode = (string) ($request->input('top_customer_mode') ?? 'volume');
         $topCustomerTahun = (int) ($request->input('top_customer_tahun') ?? $now->year);
         $topCustomerBulan = (int) ($request->input('top_customer_bulan') ?? $now->month);
+
+        // New: Get year range for Line Chart filter
+        $yearCompareStart = $request->input('year_compare_start') ? (int) $request->input('year_compare_start') : null;
+        $yearCompareEnd = $request->input('year_compare_end') ? (int) $request->input('year_compare_end') : null;
 
         if (!in_array($topCustomerJenis, ['kedatangan', 'muat'], true)) {
             $topCustomerJenis = 'kedatangan';
@@ -324,29 +351,40 @@ class DashboardController extends Controller
             $years = collect([(int) $now->year]);
         }
 
-        $kedatanganYearRows = Angkutan::query()
+        // For year comparison, use single year selected by user
+        $yearCompareDisplay = (int) ($request->input('year_compare_display') ?? $now->year);
+        
+        // Get monthly data for the selected year
+        $bulanLabelsChart = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        
+        $kedatanganMonthlyRows = Angkutan::query()
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->where('jenis_angkutan', 'kedatangan')
-            ->selectRaw('YEAR(tanggal_keberangkatan_asal_ka) as tahun, SUM(volume_berat_kai) as total')
-            ->groupBy('tahun')
+            ->whereYear('tanggal_keberangkatan_asal_ka', $yearCompareDisplay)
+            ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
+            ->groupBy('bulan')
             ->get()
-            ->keyBy('tahun');
+            ->keyBy('bulan');
 
-        $muatYearRows = Angkutan::query()
+        $muatMonthlyRows = Angkutan::query()
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->where('jenis_angkutan', 'muat')
-            ->selectRaw('YEAR(tanggal_keberangkatan_asal_ka) as tahun, SUM(volume_berat_kai) as total')
-            ->groupBy('tahun')
+            ->whereYear('tanggal_keberangkatan_asal_ka', $yearCompareDisplay)
+            ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
+            ->groupBy('bulan')
             ->get()
-            ->keyBy('tahun');
+            ->keyBy('bulan');
 
-        $volYearKedatangan = $years->map(function ($y) use ($kedatanganYearRows) {
-            return (float) (($kedatanganYearRows[$y]->total ?? 0) ?: 0);
-        })->values()->all();
+        // Build monthly data arrays
+        $volMonthKedatangan = [];
+        $volMonthMuat = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $volMonthKedatangan[] = (float) (($kedatanganMonthlyRows[$m]->total ?? 0) ?: 0);
+            $volMonthMuat[] = (float) (($muatMonthlyRows[$m]->total ?? 0) ?: 0);
+        }
 
-        $volYearMuat = $years->map(function ($y) use ($muatYearRows) {
-            return (float) (($muatYearRows[$y]->total ?? 0) ?: 0);
-        })->values()->all();
+        // Keep old year-based data for potential future use
+        $yearsForChart = $years;
 
         $start = Carbon::create($saTahun, $saBulan, 1)->startOfDay();
         $end = (clone $start)->endOfMonth()->endOfDay();
@@ -385,30 +423,75 @@ class DashboardController extends Controller
             $harianMuat[] = (int) (($harianMuatRows[$d]->total ?? 0) ?: 0);
         }
 
-        $topCustomerQuery = Angkutan::query()
-            ->whereNotNull('tanggal_keberangkatan_asal_ka')
-            ->where('jenis_angkutan', $topCustomerJenis)
-            ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
-            ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
-            ->whereNotNull('nama_customer')
-            ->select('nama_customer')
-            ->groupBy('nama_customer');
-
-        if ($topCustomerMode === 'sa') {
-            $topCustomerQuery->selectRaw('COUNT(*) as total_metric');
+        // Handle station distribution query
+        if ($topCustomerJenis === 'keduanya') {
+            // Combine both asal and tujuan stations
+            $asalData = Angkutan::query()
+                ->whereNotNull('tanggal_keberangkatan_asal_ka')
+                ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
+                ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
+                ->whereNotNull('stasiun_asal_sa')
+                ->select('stasiun_asal_sa as stasiun')
+                ->selectRaw('COUNT(*) as total_sa, SUM(volume_berat_kai) as total_volume')
+                ->groupBy('stasiun_asal_sa')
+                ->get();
+            
+            $tujuanData = Angkutan::query()
+                ->whereNotNull('tanggal_keberangkatan_asal_ka')
+                ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
+                ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
+                ->whereNotNull('stasiun_tujuan_sa')
+                ->select('stasiun_tujuan_sa as stasiun')
+                ->selectRaw('COUNT(*) as total_sa, SUM(volume_berat_kai) as total_volume')
+                ->groupBy('stasiun_tujuan_sa')
+                ->get();
+            
+            // Merge and aggregate by stasiun
+            $merged = [];
+            foreach ($asalData as $row) {
+                $stasiun = $row->stasiun;
+                if (!isset($merged[$stasiun])) {
+                    $merged[$stasiun] = ['total_sa' => 0, 'total_volume' => 0];
+                }
+                $merged[$stasiun]['total_sa'] += $row->total_sa;
+                $merged[$stasiun]['total_volume'] += $row->total_volume;
+            }
+            
+            foreach ($tujuanData as $row) {
+                $stasiun = $row->stasiun;
+                if (!isset($merged[$stasiun])) {
+                    $merged[$stasiun] = ['total_sa' => 0, 'total_volume' => 0];
+                }
+                $merged[$stasiun]['total_sa'] += $row->total_sa;
+                $merged[$stasiun]['total_volume'] += $row->total_volume;
+            }
+            
+            // Sort and limit to 15
+            uasort($merged, fn($a, $b) => $b['total_sa'] <=> $a['total_sa']);
+            $merged = array_slice($merged, 0, 15, true);
+            
+            $topCustomerLabels = array_keys($merged);
+            $topCustomerValues = array_map(fn($v) => (int) $v['total_sa'], $merged);
         } else {
-            $topCustomerQuery->selectRaw('SUM(volume_berat_kai) as total_metric');
+            // Determine field based on jenis
+            $groupByField = $topCustomerJenis === 'kedatangan' ? 'stasiun_asal_sa' : 'stasiun_tujuan_sa';
+            
+            $topCustomerQuery = Angkutan::query()
+                ->whereNotNull('tanggal_keberangkatan_asal_ka')
+                ->where('jenis_angkutan', $topCustomerJenis)
+                ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
+                ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
+                ->whereNotNull($groupByField)
+                ->select($groupByField)
+                ->selectRaw('COUNT(*) as total_sa, SUM(volume_berat_kai) as total_volume')
+                ->groupBy($groupByField)
+                ->orderByDesc('total_sa')
+                ->limit(15)
+                ->get();
+
+            $topCustomerLabels = $topCustomerQuery->pluck($groupByField)->values()->all();
+            $topCustomerValues = $topCustomerQuery->pluck('total_sa')->map(fn ($v) => (int) $v)->values()->all();
         }
-
-        $topCustomerRows = $topCustomerQuery
-            ->orderByDesc('total_metric')
-            ->limit(15)
-            ->get();
-
-        $topCustomerLabels = $topCustomerRows->pluck('nama_customer')->values()->all();
-        $topCustomerValues = $topCustomerRows->pluck('total_metric')->map(function ($v) use ($topCustomerMode) {
-            return $topCustomerMode === 'sa' ? (int) $v : (float) $v;
-        })->values()->all();
 
         return view('dashboard.statistik', compact(
             'bulanLabels',
@@ -425,10 +508,14 @@ class DashboardController extends Controller
             'mitraLabels',
             'mitraVolumes',
             'years',
-            'volYearKedatangan',
-            'volYearMuat',
+            'yearsForChart',
+            'bulanLabelsChart',
+            'volMonthKedatangan',
+            'volMonthMuat',
+            'yearCompareDisplay',
             'saTahun',
             'saBulan',
+            'saJenis',
             'harianDates',
             'harianKedatangan',
             'harianMuat',
@@ -942,4 +1029,224 @@ class DashboardController extends Controller
     {
         return is_numeric($value) ? (int) $value : 0;
     }
+
+    public function exportPreviewDataExcel(Request $request)
+    {
+        $query = Angkutan::query();
+
+        if ($request->filled('nomor_sarana')) {
+            $query->where('nomor_sarana', 'like', '%' . $request->string('nomor_sarana')->toString() . '%');
+        }
+
+        if ($request->filled('tanggal')) {
+            $query->whereDate('tanggal_keberangkatan_asal_ka', $request->string('tanggal')->toString());
+        }
+
+        if ($request->filled('nama_customer')) {
+            $query->where('nama_customer', 'like', '%' . $request->string('nama_customer')->toString() . '%');
+        }
+
+        if ($request->filled('stasiun_asal_sa')) {
+            $query->where('stasiun_asal_sa', $request->string('stasiun_asal_sa')->toString());
+        }
+
+        if ($request->filled('stasiun_tujuan_sa')) {
+            $query->where('stasiun_tujuan_sa', $request->string('stasiun_tujuan_sa')->toString());
+        }
+
+        if ($request->filled('jenis_angkutan')) {
+            $query->where('jenis_angkutan', $request->string('jenis_angkutan')->toString());
+        }
+
+        $data = $query
+            ->orderBy('tanggal_keberangkatan_asal_ka', 'desc')
+            ->get();
+
+        // Get format from request (csv or xlsx), default to csv
+        $format = $request->input('format', 'csv');
+        
+        if ($format === 'xlsx') {
+            return $this->exportPreviewDataXlsx($data);
+        }
+
+        $fileName = 'preview-data-angkutan.csv';
+
+        return response()->streamDownload(function () use ($data) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'Jenis Angkutan',
+                'Customer',
+                'Stasiun Asal',
+                'Stasiun Tujuan',
+                'Nama KA',
+                'Tanggal',
+                'No. Sarana',
+                'Volume (kg)',
+                'Koli',
+                'Status',
+            ]);
+
+            foreach ($data as $item) {
+                fputcsv($out, [
+                    ucfirst($item->jenis_angkutan),
+                    $item->nama_customer,
+                    $item->stasiun_asal_sa,
+                    $item->stasiun_tujuan_sa ?? '-',
+                    $item->nama_ka_stasiun_asal,
+                    optional($item->tanggal_keberangkatan_asal_ka)->format('Y-m-d'),
+                    $item->nomor_sarana ?? '-',
+                    (string) $item->volume_berat_kai,
+                    (string) $item->banyaknya_pengajuan,
+                    ucfirst($item->status_sa ?? 'pending'),
+                ]);
+            }
+            fclose($out);
+        }, $fileName, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    private function exportPreviewDataXlsx($data)
+    {
+        $fileName = 'preview-data-angkutan.xlsx';
+        
+        // Create proper XLSX using PHP with ZIP format
+        return response()->streamDownload(function () use ($data) {
+            // Create temporary file
+            $tempFile = tempnam(sys_get_temp_dir(), 'xlsx');
+            $zip = new \ZipArchive();
+            $zip->open($tempFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+            
+            // Add mimetype file
+            $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>');
+            
+            // Add relationships
+            $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>');
+            
+            // Add workbook relationships
+            $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>
+</Relationships>');
+            
+            // Add styles
+            $zip->addFromString('xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="2">
+<font><sz val="11"/><color theme="1"/><name val="Calibri"/></font>
+<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+</fonts>
+<fills count="3">
+<fill><patternFill patternType="none"/></fill>
+<fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF366092"/></patternFill></fill>
+</fills>
+<borders count="2">
+<border><left/><right/><top/><bottom/><diagonal/></border>
+<border><left style="thin"><color auto/></left><right style="thin"><color auto/></right><top style="thin"><color auto/></top><bottom style="thin"><color auto/></bottom></border>
+</borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="3">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+<dxfs count="0"/><tableStyles count="0"/></styleSheet>');
+            
+            // Add theme
+            $zip->addFromString('xl/theme/theme1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office Theme">
+<a:themeElements><a:clrScheme name="Office"><a:dk1><a:srgbClr val="000000"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1></a:clrScheme></a:themeElements>
+</a:theme>');
+            
+            // Generate worksheet XML
+            $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetData>';
+            
+            // Header row
+            $headers = [
+                'Jenis Angkutan',
+                'Customer',
+                'Stasiun Asal',
+                'Stasiun Tujuan',
+                'Nama KA',
+                'Tanggal',
+                'No. Sarana',
+                'Volume (kg)',
+                'Koli',
+                'Status',
+            ];
+            
+            $xml .= '<row r="1">';
+            foreach ($headers as $col => $header) {
+                $cellRef = chr(65 + $col) . '1';
+                $xml .= '<c r="' . $cellRef . '" s="1" t="str"><v>' . htmlspecialchars($header) . '</v></c>';
+            }
+            $xml .= '</row>';
+            
+            // Data rows
+            $rowNum = 2;
+            foreach ($data as $item) {
+                $xml .= '<row r="' . $rowNum . '">';
+                $xml .= '<c r="A' . $rowNum . '" t="str"><v>' . htmlspecialchars(ucfirst($item->jenis_angkutan)) . '</v></c>';
+                $xml .= '<c r="B' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->nama_customer) . '</v></c>';
+                $xml .= '<c r="C' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->stasiun_asal_sa) . '</v></c>';
+                $xml .= '<c r="D' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->stasiun_tujuan_sa ?? '-') . '</v></c>';
+                $xml .= '<c r="E' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->nama_ka_stasiun_asal) . '</v></c>';
+                $xml .= '<c r="F' . $rowNum . '" t="str"><v>' . htmlspecialchars(optional($item->tanggal_keberangkatan_asal_ka)->format('Y-m-d') ?? '-') . '</v></c>';
+                $xml .= '<c r="G' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->nomor_sarana ?? '-') . '</v></c>';
+                $xml .= '<c r="H' . $rowNum . '" t="n"><v>' . $item->volume_berat_kai . '</v></c>';
+                $xml .= '<c r="I' . $rowNum . '" t="n"><v>' . $item->banyaknya_pengajuan . '</v></c>';
+                $xml .= '<c r="J' . $rowNum . '" t="str"><v>' . htmlspecialchars(ucfirst($item->status_sa ?? 'pending')) . '</v></c>';
+                $xml .= '</row>';
+                $rowNum++;
+            }
+            
+            $xml .= '</sheetData></worksheet>';
+            $zip->addFromString('xl/worksheets/sheet1.xml', $xml);
+            
+            // Add workbook
+            $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<workbookPr date1904="false"/>
+<sheets><sheet name="Data" sheetId="1" r:id="rId1"/></sheets>
+</workbook>');
+            
+            // Add core properties
+            $zip->addFromString('docProps/core.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<dc:title>Data Angkutan</dc:title>
+<dc:creator>KAI</dc:creator>
+<cp:lastModifiedBy>KAI</cp:lastModifiedBy>
+<dcterms:created xsi:type="dcterms:W3CDTF">' . now()->toIso8601String() . '</dcterms:created>
+<dcterms:modified xsi:type="dcterms:W3CDTF">' . now()->toIso8601String() . '</dcterms:modified>
+</cp:coreProperties>');
+            
+            $zip->close();
+            
+            readfile($tempFile);
+            unlink($tempFile);
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="preview-data-angkutan.xlsx"',
+        ]);
+    }
 }
+

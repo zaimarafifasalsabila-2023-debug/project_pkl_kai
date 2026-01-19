@@ -127,10 +127,35 @@
     <div id="section-year-compare" class="bg-white rounded-lg shadow-md p-6">
         <div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-3 mb-4">
             <h3 class="text-lg font-semibold text-gray-800">Line Chart – Perbandingan Volume Tahunan</h3>
-            <div class="flex gap-2">
-                <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartYearCompare" data-type="png">PNG</button>
-                <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartYearCompare" data-type="jpeg">JPEG</button>
-                <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartYearCompare" data-type="jpg">JPG</button>
+            <div class="flex flex-wrap items-end justify-end gap-2">
+                <div class="flex gap-2">
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartYearCompare" data-type="png">PNG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartYearCompare" data-type="jpeg">JPEG</button>
+                    <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartYearCompare" data-type="jpg">JPG</button>
+                </div>
+
+                <form method="GET" action="{{ route('statistik') }}#section-year-compare" class="stat-form flex gap-3 items-end">
+                <input type="hidden" name="tahun_kedatangan" value="{{ request('tahun_kedatangan', $tahunKedatangan ?? now()->year) }}">
+                <input type="hidden" name="tahun_muat" value="{{ request('tahun_muat', $tahunMuat ?? now()->year) }}">
+                <input type="hidden" name="mitra_bulan" value="{{ request('mitra_bulan', $mitraBulan ?? now()->month) }}">
+                <input type="hidden" name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}">
+                <input type="hidden" name="sa_bulan" value="{{ request('sa_bulan', $saBulan ?? now()->month) }}">
+                <input type="hidden" name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}">
+                <input type="hidden" name="top_customer_jenis" value="{{ request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') }}">
+                <input type="hidden" name="top_customer_mode" value="{{ request('top_customer_mode', $topCustomerMode ?? 'volume') }}">
+                <input type="hidden" name="top_customer_bulan" value="{{ request('top_customer_bulan', $topCustomerBulan ?? now()->month) }}">
+                <input type="hidden" name="top_customer_tahun" value="{{ request('top_customer_tahun', $topCustomerTahun ?? now()->year) }}">
+
+                <div class="min-w-[112px]">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Tahun</label>
+                    <input name="year_compare_display" value="{{ request('year_compare_display', $yearCompareDisplay ?? now()->year) }}" type="number" min="2000" max="2100" class="w-28 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                </div>
+
+                <button type="submit" class="h-10 px-4 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200 whitespace-nowrap">
+                    <i class="fas fa-filter mr-2"></i>
+                    Terapkan
+                </button>
+                </form>
             </div>
         </div>
         <canvas id="chartYearCompare" height="140"></canvas>
@@ -138,10 +163,7 @@
 
     <div id="section-sa-harian" class="bg-white rounded-lg shadow-md p-6">
         <div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-3 mb-4">
-            <div>
-                <h3 class="text-lg font-semibold text-gray-800">Line Chart – Jumlah SA per Hari</h3>
-                <p class="text-sm text-gray-500">Toggle: Kedatangan / Muat / Keduanya</p>
-            </div>
+            <h3 class="text-lg font-semibold text-gray-800">Line Chart – Jumlah SA per Hari</h3>
 
             <div class="flex gap-2">
                 <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartSaHarian" data-type="png">PNG</button>
@@ -150,50 +172,51 @@
             </div>
         </div>
 
-        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-3">
-            <form method="GET" action="{{ route('statistik') }}#section-sa-harian" class="stat-form flex flex-wrap gap-3 items-end">
-                <input type="hidden" name="tahun_kedatangan" value="{{ request('tahun_kedatangan', $tahunKedatangan ?? now()->year) }}">
-                <input type="hidden" name="tahun_muat" value="{{ request('tahun_muat', $tahunMuat ?? now()->year) }}">
-                <input type="hidden" name="mitra_bulan" value="{{ request('mitra_bulan', $mitraBulan ?? now()->month) }}">
-                <input type="hidden" name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}">
-                <input type="hidden" name="top_customer_jenis" value="{{ request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') }}">
-                <input type="hidden" name="top_customer_mode" value="{{ request('top_customer_mode', $topCustomerMode ?? 'volume') }}">
-                <input type="hidden" name="top_customer_bulan" value="{{ request('top_customer_bulan', $topCustomerBulan ?? now()->month) }}">
-                <input type="hidden" name="top_customer_tahun" value="{{ request('top_customer_tahun', $topCustomerTahun ?? now()->year) }}">
+        <form method="GET" action="{{ route('statistik') }}#section-sa-harian" class="stat-form flex flex-wrap gap-3 items-end mb-4">
+            <input type="hidden" name="tahun_kedatangan" value="{{ request('tahun_kedatangan', $tahunKedatangan ?? now()->year) }}">
+            <input type="hidden" name="tahun_muat" value="{{ request('tahun_muat', $tahunMuat ?? now()->year) }}">
+            <input type="hidden" name="mitra_bulan" value="{{ request('mitra_bulan', $mitraBulan ?? now()->month) }}">
+            <input type="hidden" name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}">
+            <input type="hidden" name="top_customer_jenis" value="{{ request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') }}">
+            <input type="hidden" name="top_customer_mode" value="{{ request('top_customer_mode', $topCustomerMode ?? 'volume') }}">
+            <input type="hidden" name="top_customer_bulan" value="{{ request('top_customer_bulan', $topCustomerBulan ?? now()->month) }}">
+            <input type="hidden" name="top_customer_tahun" value="{{ request('top_customer_tahun', $topCustomerTahun ?? now()->year) }}">
 
-                <div class="min-w-[144px]">
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Bulan</label>
-                    <select name="sa_bulan" class="w-36 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
-                        @foreach ([1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',5=>'Mei',6=>'Jun',7=>'Jul',8=>'Agu',9=>'Sep',10=>'Okt',11=>'Nov',12=>'Des'] as $m => $label)
-                            <option value="{{ $m }}" @selected((int)request('sa_bulan', $saBulan ?? now()->month) === $m)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="min-w-[112px]">
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Tahun</label>
-                    <input name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}" type="number" min="2000" max="2100" class="w-28 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
-                </div>
-
-                <button type="submit" class="h-10 px-4 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200 whitespace-nowrap">
-                    <i class="fas fa-filter mr-2"></i>
-                    Terapkan
-                </button>
-            </form>
-
-            <div class="flex flex-wrap gap-2">
-                <button type="button" data-sa-toggle="both" class="sa-toggle px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Keduanya</button>
-                <button type="button" data-sa-toggle="kedatangan" class="sa-toggle px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Kedatangan</button>
-                <button type="button" data-sa-toggle="muat" class="sa-toggle px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Muat</button>
+            <div class="min-w-[160px]">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
+                <select name="sa_jenis" class="w-40 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                    <option value="keduanya" @selected(request('sa_jenis', 'keduanya') === 'keduanya')>Keduanya</option>
+                    <option value="kedatangan" @selected(request('sa_jenis') === 'kedatangan')>Kedatangan</option>
+                    <option value="muat" @selected(request('sa_jenis') === 'muat')>Muat</option>
+                </select>
             </div>
-        </div>
+
+            <div class="min-w-[144px]">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Bulan</label>
+                <select name="sa_bulan" class="w-36 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                    @foreach ([1=>'Jan',2=>'Feb',3=>'Mar',4=>'Apr',5=>'Mei',6=>'Jun',7=>'Jul',8=>'Agu',9=>'Sep',10=>'Okt',11=>'Nov',12=>'Des'] as $m => $label)
+                        <option value="{{ $m }}" @selected((int)request('sa_bulan', $saBulan ?? now()->month) === $m)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="min-w-[112px]">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Tahun</label>
+                <input name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}" type="number" min="2000" max="2100" class="w-28 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+            </div>
+
+            <button type="submit" class="h-10 px-4 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200 whitespace-nowrap">
+                <i class="fas fa-filter mr-2"></i>
+                Terapkan
+            </button>
+        </form>
 
         <canvas id="chartSaHarian" height="160"></canvas>
     </div>
 
     <div id="section-top-customer" class="bg-white rounded-lg shadow-md p-6">
         <div class="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-3 mb-4">
-            <h3 class="text-lg font-semibold text-gray-800">Bar Chart – Top Customer</h3>
+            <h3 class="text-lg font-semibold text-gray-800">Bar Chart – Persebaran Tujuan Stasiun</h3>
 
             <div class="flex gap-2">
                 <button type="button" class="chart-download px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-canvas="chartTopCustomer" data-type="png">PNG</button>
@@ -209,20 +232,14 @@
             <input type="hidden" name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}">
             <input type="hidden" name="sa_bulan" value="{{ request('sa_bulan', $saBulan ?? now()->month) }}">
             <input type="hidden" name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}">
+            <input type="hidden" name="top_customer_mode" value="sa">
 
             <div class="min-w-[160px]">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
                 <select name="top_customer_jenis" class="w-40 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
-                    <option value="kedatangan" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'kedatangan')>Kedatangan</option>
-                    <option value="muat" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'muat')>Muat</option>
-                </select>
-            </div>
-
-            <div class="min-w-[144px]">
-                <label class="block text-xs font-medium text-gray-500 mb-1">Mode</label>
-                <select name="top_customer_mode" class="w-32 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
-                    <option value="volume" @selected(request('top_customer_mode', $topCustomerMode ?? 'volume') === 'volume')>Volume</option>
-                    <option value="sa" @selected(request('top_customer_mode', $topCustomerMode ?? 'volume') === 'sa')>Jumlah SA</option>
+                    <option value="keduanya" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'keduanya')>Keduanya</option>
+                    <option value="kedatangan" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'kedatangan')>Kedatangan (Asal)</option>
+                    <option value="muat" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'muat')>Muat (Tujuan)</option>
                 </select>
             </div>
 
@@ -387,18 +404,18 @@ document.addEventListener('DOMContentLoaded', function () {
         new Chart(yearCompareEl, {
             type: 'line',
             data: {
-                labels: @json($years),
+                labels: @json($bulanLabelsChart),
                 datasets: [
                     {
                         label: 'Kedatangan',
-                        data: @json($volYearKedatangan),
+                        data: @json($volMonthKedatangan),
                         borderColor: kaiNavy,
                         backgroundColor: kaiNavy,
                         tension: 0.25,
                     },
                     {
                         label: 'Muat',
-                        data: @json($volYearMuat),
+                        data: @json($volMonthMuat),
                         borderColor: kaiOrange,
                         backgroundColor: kaiOrange,
                         tension: 0.25,
@@ -447,43 +464,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 scales: { y: { beginAtZero: true } }
             }
         });
+
+        // Handle chart visibility based on saJenis value from form
+        const saJenis = "{{ $saJenis ?? 'keduanya' }}";
+        if (saJenis === 'keduanya') {
+            saChart.data.datasets[0].hidden = false;
+            saChart.data.datasets[1].hidden = false;
+        } else if (saJenis === 'kedatangan') {
+            saChart.data.datasets[0].hidden = false;
+            saChart.data.datasets[1].hidden = true;
+        } else if (saJenis === 'muat') {
+            saChart.data.datasets[0].hidden = true;
+            saChart.data.datasets[1].hidden = false;
+        }
+        saChart.update();
     }
-
-    const setToggleActive = (mode) => {
-        document.querySelectorAll('.sa-toggle').forEach(btn => {
-            if (btn.getAttribute('data-sa-toggle') === mode) {
-                btn.classList.add('bg-kai-orange', 'text-white');
-                btn.classList.remove('border-gray-300');
-            } else {
-                btn.classList.remove('bg-kai-orange', 'text-white');
-                btn.classList.add('border-gray-300');
-            }
-        });
-    };
-
-    setToggleActive('both');
-
-    document.querySelectorAll('.sa-toggle').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const mode = btn.getAttribute('data-sa-toggle');
-            setToggleActive(mode);
-            if (!saChart) return;
-
-            if (mode === 'both') {
-                saChart.data.datasets[0].hidden = false;
-                saChart.data.datasets[1].hidden = false;
-            }
-            if (mode === 'kedatangan') {
-                saChart.data.datasets[0].hidden = false;
-                saChart.data.datasets[1].hidden = true;
-            }
-            if (mode === 'muat') {
-                saChart.data.datasets[0].hidden = true;
-                saChart.data.datasets[1].hidden = false;
-            }
-            saChart.update();
-        });
-    });
 
     const topCustomerEl = document.getElementById('chartTopCustomer');
     if (topCustomerEl) {

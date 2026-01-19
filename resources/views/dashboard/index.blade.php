@@ -6,12 +6,31 @@
 
 @section('content')
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-    <!-- Total Angkutan Card -->
+    <!-- Total Volume Kedatangan Seluruh Angkutan Card -->
     <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-gray-500 text-sm">Total Volume Seluruh Angkutan</p>
-                <p class="text-3xl font-bold text-gray-800">{{ number_format(((float) $totalVolumeAll) / 1000, 2) }}</p>
+                <p class="text-gray-500 text-sm">Total Volume Kedatangan Seluruh Angkutan</p>
+                <p class="text-3xl font-bold text-gray-800">{{ number_format(((float) $totalVolumeKedatangan) / 1000, 2) }}</p>
+                <p class="text-xs text-gray-500">ton</p>
+            </div>
+            <div class="w-12 h-12 bg-kai-navy rounded-full flex items-center justify-center">
+                <i class="fas fa-train text-white text-xl"></i>
+            </div>
+        </div>
+        <div class="mt-4">
+            <span class="text-green-600 text-sm">
+                <i class="fas fa-arrow-up"></i> 8% dari bulan lalu
+            </span>
+        </div>
+    </div>
+
+    <!-- Total Volume Muat Card -->
+    <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Total Volume Muat</p>
+                <p class="text-3xl font-bold text-gray-800">{{ number_format(((float) $totalVolumeMuat) / 1000, 2) }}</p>
                 <p class="text-xs text-gray-500">ton</p>
             </div>
             <div class="w-12 h-12 bg-kai-orange rounded-full flex items-center justify-center">
