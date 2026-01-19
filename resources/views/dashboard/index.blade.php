@@ -24,7 +24,7 @@
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-    <!-- Total Angkutan Card -->
+    <!-- Total Volume Muat Seluruh Angkutan Card -->
     <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
         <div class="flex items-center justify-between">
             <div>

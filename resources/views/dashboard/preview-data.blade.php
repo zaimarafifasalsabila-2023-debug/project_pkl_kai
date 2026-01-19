@@ -85,17 +85,30 @@
     </form>
 </div>
 
-<!-- Data Table -->
+    <!-- Data Table -->
 <div class="bg-white rounded-lg shadow-md overflow-hidden">
     <div class="p-6 border-b">
         <div class="flex items-center justify-between">
             <h3 class="text-lg font-semibold text-gray-800">Data Angkutan</h3>
             <div class="flex gap-2">
-                <button class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
-                    <i class="fas fa-download mr-2"></i>
-                    Export Excel
-                </button>
-                <button class="px-4 py-2 kai-navy-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
+                <div class="relative">
+                    <button type="button" id="exportBtn" class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200 flex items-center">
+                        <i class="fas fa-download mr-2"></i>
+                        Export Excel
+                        <i class="fas fa-chevron-down ml-2 text-sm"></i>
+                    </button>
+                    <div id="exportMenu" class="absolute right-0 mt-2 w-40 bg-white border border-gray-300 rounded-lg shadow-lg hidden z-10">
+                        <button type="button" onclick="exportData('xlsx')" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700">
+                            <i class="fas fa-file-excel mr-2 text-green-600"></i>
+                            Export XLSX
+                        </button>
+                        <button type="button" onclick="exportData('csv')" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 border-t border-gray-200">
+                            <i class="fas fa-file-csv mr-2 text-blue-600"></i>
+                            Export CSV
+                        </button>
+                    </div>
+                </div>
+                <button type="button" onclick="printTable()" class="px-4 py-2 kai-navy-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
                     <i class="fas fa-print mr-2"></i>
                     Cetak
                 </button>
@@ -186,4 +199,173 @@
         </div>
     </div>
 </div>
+
+<script>
+function exportData(format) {
+    // Get current query parameters
+    const params = new URLSearchParams(window.location.search);
+    
+    // Build download URL with current filters
+    const url = new URL("{{ route('preview.data.export.excel') }}", window.location.origin);
+    
+    // Add all current filter parameters to the export URL
+    for (const [key, value] of params) {
+        url.searchParams.append(key, value);
+    }
+    
+    // Add format parameter
+    url.searchParams.append('format', format);
+    
+    // Download the file
+    window.location.href = url.toString();
+}
+
+function printTable() {
+    // Get current filter parameters
+    const params = new URLSearchParams(window.location.search);
+    
+    // Build URL to fetch all data with current filters
+    const url = new URL("{{ route('preview.data') }}", window.location.origin);
+    
+    // Add all current filter parameters
+    for (const [key, value] of params) {
+        url.searchParams.append(key, value);
+    }
+    
+    // Remove pagination parameter to get all data
+    url.searchParams.delete('page');
+    
+    // Fetch all data
+    fetch(url.toString() + '&print=true', {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(responseData => {
+        // Create a new window for printing
+        const printWindow = window.open('', '', 'width=1200,height=800');
+        
+        // Prepare table HTML
+        let tableHtml = `
+            <table style="width:100%; border-collapse: collapse; margin-top: 20px;">
+                <thead>
+                    <tr style="background-color: #f3f4f6;">
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">Jenis</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">Customer</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">Stasiun Asal</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">Stasiun Tujuan</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">Nama KA</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">Tanggal</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">No. Sarana</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">Volume (kg)</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">Koli</th>
+                        <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151; border: 1px solid #d1d5db; font-size: 12px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        // Add data rows
+        if (responseData.data && responseData.data.length > 0) {
+            responseData.data.forEach((item, index) => {
+                const rowColor = index % 2 === 0 ? '#ffffff' : '#f9fafb';
+                tableHtml += `
+                    <tr style="background-color: ${rowColor};">
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px;">${item.jenis_angkutan || '-'}</td>
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px;">${item.nama_customer || '-'}</td>
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px;">${item.stasiun_asal_sa || '-'}</td>
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px;">${item.stasiun_tujuan_sa || '-'}</td>
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px;">${item.nama_ka_stasiun_asal || '-'}</td>
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px;">${item.tanggal_keberangkatan_asal_ka || '-'}</td>
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px;">${item.nomor_sarana || '-'}</td>
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px; text-align: right;">${parseFloat(item.volume_berat_kai).toLocaleString('id-ID') || '0'}</td>
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px; text-align: center;">${item.banyaknya_pengajuan || '-'}</td>
+                        <td style="padding: 12px; border: 1px solid #d1d5db; font-size: 12px;">${item.status_sa || '-'}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            tableHtml += '<tr><td colspan="10" style="padding: 20px; text-align: center; border: 1px solid #d1d5db;">Tidak ada data</td></tr>';
+        }
+        
+        tableHtml += '</tbody></table>';
+        
+        // Create HTML content for printing
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Data Angkutan</title>
+                <style>
+                    body {
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        margin: 20px;
+                        background-color: white;
+                    }
+                    h1 {
+                        text-align: center;
+                        color: #333;
+                        margin-bottom: 20px;
+                    }
+                    .print-info {
+                        text-align: center;
+                        color: #666;
+                        margin-bottom: 20px;
+                        font-size: 12px;
+                    }
+                    @media print {
+                        body { margin: 0; }
+                        .no-print { display: none; }
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>Data Angkutan</h1>
+                <p class="print-info">Dicetak pada: ${new Date().toLocaleString('id-ID')} | Total Data: ${responseData.data ? responseData.data.length : 0}</p>
+                ${tableHtml}
+            </body>
+            </html>
+        `;
+        
+        // Write content to print window
+        printWindow.document.write(html);
+        printWindow.document.close();
+        
+        // Trigger print dialog after a short delay to ensure content is loaded
+        setTimeout(() => {
+            printWindow.print();
+        }, 250);
+    })
+    .catch(error => {
+        console.error('Error fetching data for print:', error);
+        alert('Gagal mengambil data untuk cetak. Silakan coba lagi.');
+    });
+}
+
+// Toggle export menu visibility
+document.getElementById('exportBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('exportMenu');
+    menu.classList.toggle('hidden');
+});
+
+// Close export menu when clicking outside
+document.addEventListener('click', function(e) {
+    const exportBtn = document.getElementById('exportBtn');
+    const exportMenu = document.getElementById('exportMenu');
+    if (!exportBtn.contains(e.target) && !exportMenu.contains(e.target)) {
+        exportMenu.classList.add('hidden');
+    }
+});
+
+// Close export menu after selecting an option
+document.getElementById('exportMenu').addEventListener('click', function() {
+    setTimeout(() => {
+        this.classList.add('hidden');
+    }, 100);
+});
+</script>
 @endsection
