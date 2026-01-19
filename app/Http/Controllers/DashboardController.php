@@ -13,11 +13,35 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
-        $totalAngkutan = Angkutan::count();
         $totalCustomer = Customer::count();
-        $totalStation = Station::count();
 
-        return view('dashboard.index', compact('totalAngkutan', 'totalCustomer', 'totalStation'));
+        $totalVolumeAll = (float) Angkutan::query()->sum('volume_berat_kai');
+
+        $muatVolumeSBI = (float) Angkutan::query()
+            ->where('jenis_angkutan', 'muat')
+            ->whereNotNull('stasiun_asal_sa')
+            ->whereRaw('UPPER(stasiun_asal_sa) LIKE ?', ['%SBI%'])
+            ->sum('volume_berat_kai');
+
+        $muatVolumeBBT = (float) Angkutan::query()
+            ->where('jenis_angkutan', 'muat')
+            ->whereNotNull('stasiun_asal_sa')
+            ->whereRaw('UPPER(stasiun_asal_sa) LIKE ?', ['%BBT%'])
+            ->sum('volume_berat_kai');
+
+        $muatVolumeBJ = (float) Angkutan::query()
+            ->where('jenis_angkutan', 'muat')
+            ->whereNotNull('stasiun_asal_sa')
+            ->whereRaw('UPPER(stasiun_asal_sa) LIKE ?', ['%BJ%'])
+            ->sum('volume_berat_kai');
+
+        return view('dashboard.index', compact(
+            'totalCustomer',
+            'totalVolumeAll',
+            'muatVolumeSBI',
+            'muatVolumeBBT',
+            'muatVolumeBJ'
+        ));
     }
 
     public function exportDashboardExcel(Request $request)

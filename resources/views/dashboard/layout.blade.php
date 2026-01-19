@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@yield('title', 'KA Parcel Dashboard')</title>
+    <title>@yield('title', 'UPT Terminal Babat Dashboard')</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -62,18 +62,19 @@
 </head>
 <body class="bg-gray-100">
     <div class="flex h-screen relative">
-        <!-- Toggle Button -->
-        <button id="sidebarToggle" class="fixed z-50 left-4 top-4 bg-kai-orange text-white p-3 rounded-lg shadow-lg hover:bg-kai-orange-dark transition-all duration-200">
-            <i class="fas fa-bars"></i>
-        </button>
-
         <!-- Sidebar -->
         <div id="sidebar" class="sidebar-transition w-64 kai-gradient text-white fixed h-full z-40">
             <div class="p-6 sidebar-header">
-                <h1 class="text-2xl font-bold flex items-center">
-                    <i class="fas fa-train mr-2 text-kai-orange"></i>
-                    <span class="sidebar-text">KA Parcel</span>
-                </h1>
+                <div class="flex items-center justify-between">
+                    <h1 class="text-2xl font-bold flex items-center">
+                        <i class="fas fa-train mr-2 text-kai-orange"></i>
+                        <span class="sidebar-text">UPT Terminal Babat</span>
+                    </h1>
+
+                    <button id="sidebarToggle" type="button" class="bg-kai-orange text-white p-2 rounded-lg shadow hover:bg-kai-orange-dark transition-all duration-200">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
             </div>
             
             <nav class="mt-6">
@@ -95,15 +96,6 @@
                 </a>
             </nav>
             
-            <div class="absolute bottom-0 w-full p-6">
-                <form action="{{ route('logout') }}" method="POST" class="inline-block w-full">
-                    @csrf
-                    <button type="submit" class="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition duration-200">
-                        <i class="fas fa-sign-out-alt w-5"></i>
-                        <span class="sidebar-text ml-2">Logout</span>
-                    </button>
-                </form>
-            </div>
         </div>
 
         <!-- Main Content -->
@@ -112,11 +104,19 @@
             <header class="bg-white shadow-sm border-b">
                 <div class="px-6 py-4 flex items-center justify-between">
                     <h2 class="text-xl font-semibold text-gray-800">@yield('header', 'Dashboard')</h2>
-                    <div class="flex items-center">
+                    <div class="flex items-center gap-3">
                         <span class="text-gray-600">Welcome, {{ Auth::user()->name }}</span>
-                        <div class="ml-4 w-10 h-10 bg-kai-orange rounded-full flex items-center justify-center">
+                        <div class="w-10 h-10 bg-kai-orange rounded-full flex items-center justify-center">
                             <i class="fas fa-user text-white"></i>
                         </div>
+
+                        <form action="{{ route('logout') }}" method="POST" class="inline-block">
+                            @csrf
+                            <button type="submit" class="flex items-center justify-center px-3 h-10 bg-red-600 hover:bg-red-700 text-white rounded-lg transition duration-200">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span class="ml-2 hidden md:inline">Logout</span>
+                            </button>
+                        </form>
                     </div>
                 </div>
             </header>

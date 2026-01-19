@@ -10,8 +10,9 @@
     <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-gray-500 text-sm">Total Angkutan</p>
-                <p class="text-3xl font-bold text-gray-800">{{ $totalAngkutan }}</p>
+                <p class="text-gray-500 text-sm">Total Volume Seluruh Angkutan</p>
+                <p class="text-3xl font-bold text-gray-800">{{ number_format(((float) $totalVolumeAll) / 1000, 2) }}</p>
+                <p class="text-xs text-gray-500">ton</p>
             </div>
             <div class="w-12 h-12 bg-kai-orange rounded-full flex items-center justify-center">
                 <i class="fas fa-train text-white text-xl"></i>
@@ -42,15 +43,51 @@
         </div>
     </div>
 
-    <!-- Total Station Card -->
     <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-gray-500 text-sm">Total Stasiun</p>
-                <p class="text-3xl font-bold text-gray-800">{{ $totalStation }}</p>
+                <p class="text-gray-500 text-sm">Total Volume Muat Asal SBI</p>
+                <p class="text-3xl font-bold text-gray-800">{{ number_format(((float) $muatVolumeSBI) / 1000, 2) }}</p>
+                <p class="text-xs text-gray-500">ton</p>
             </div>
             <div class="w-12 h-12 bg-kai-navy rounded-full flex items-center justify-center">
-                <i class="fas fa-map-marker-alt text-white text-xl"></i>
+                <i class="fas fa-train text-white text-xl"></i>
+            </div>
+        </div>
+        <div class="mt-4">
+            <span class="text-gray-600 text-sm">
+                <i class="fas fa-minus"></i> Tidak ada perubahan
+            </span>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Total Volume Muat Asal BBT</p>
+                <p class="text-3xl font-bold text-gray-800">{{ number_format(((float) $muatVolumeBBT) / 1000, 2) }}</p>
+                <p class="text-xs text-gray-500">ton</p>
+            </div>
+            <div class="w-12 h-12 bg-kai-navy rounded-full flex items-center justify-center">
+                <i class="fas fa-train text-white text-xl"></i>
+            </div>
+        </div>
+        <div class="mt-4">
+            <span class="text-gray-600 text-sm">
+                <i class="fas fa-minus"></i> Tidak ada perubahan
+            </span>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Total Volume Muat Asal BJ</p>
+                <p class="text-3xl font-bold text-gray-800">{{ number_format(((float) $muatVolumeBJ) / 1000, 2) }}</p>
+                <p class="text-xs text-gray-500">ton</p>
+            </div>
+            <div class="w-12 h-12 bg-kai-navy rounded-full flex items-center justify-center">
+                <i class="fas fa-train text-white text-xl"></i>
             </div>
         </div>
         <div class="mt-4">
@@ -65,27 +102,27 @@
 <div class="bg-white rounded-lg shadow-md p-6">
     <h3 class="text-lg font-semibold text-gray-800 mb-4">Aksi Cepat</h3>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <a href="{{ route('input.data') }}" class="flex items-center p-4 bg-kai-orange bg-opacity-10 rounded-lg hover:bg-opacity-20 transition duration-200">
-            <i class="fas fa-plus-circle text-kai-orange text-2xl mr-3"></i>
+        <a href="{{ route('input.data') }}" class="flex items-center p-4 kai-orange-gradient rounded-lg hover:opacity-90 transition duration-200 text-white">
+            <i class="fas fa-file-import text-white text-2xl mr-3"></i>
             <div>
-                <p class="font-semibold text-gray-800">Input Data Baru</p>
-                <p class="text-sm text-gray-600">Tambah data angkutan</p>
+                <p class="font-semibold text-white">Input Data Baru</p>
+                <p class="text-sm text-white/90">Tambah data angkutan</p>
             </div>
         </a>
         
-        <a href="{{ route('preview.data') }}" class="flex items-center p-4 bg-kai-navy bg-opacity-10 rounded-lg hover:bg-opacity-20 transition duration-200">
-            <i class="fas fa-eye text-kai-navy text-2xl mr-3"></i>
+        <a href="{{ route('preview.data') }}" class="flex items-center p-4 kai-navy-gradient rounded-lg hover:opacity-90 transition duration-200 text-white">
+            <i class="fas fa-table text-white text-2xl mr-3"></i>
             <div>
-                <p class="font-semibold text-gray-800">Lihat Data</p>
-                <p class="text-sm text-gray-600">Preview semua data</p>
+                <p class="font-semibold text-white">Lihat Data</p>
+                <p class="text-sm text-white/90">Preview semua data</p>
             </div>
         </a>
         
-        <a href="{{ route('statistik') }}" class="flex items-center p-4 bg-kai-orange bg-opacity-10 rounded-lg hover:bg-opacity-20 transition duration-200">
-            <i class="fas fa-chart-bar text-kai-orange text-2xl mr-3"></i>
+        <a href="{{ route('statistik') }}" class="flex items-center p-4 bg-kai-navy-light rounded-lg hover:opacity-90 transition duration-200 text-white">
+            <i class="fas fa-chart-column text-white text-2xl mr-3"></i>
             <div>
-                <p class="font-semibold text-gray-800">Lihat Statistik</p>
-                <p class="text-sm text-gray-600">Analisis data</p>
+                <p class="font-semibold text-white">Lihat Statistik</p>
+                <p class="text-sm text-white/90">Analisis data</p>
             </div>
         </a>
     </div>

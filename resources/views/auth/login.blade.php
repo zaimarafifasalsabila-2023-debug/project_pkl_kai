@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - KA Parcel Dashboard</title>
+    <title>Login - UPT Terminal Babat Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -38,10 +38,10 @@
 <body class="min-h-screen flex items-center justify-center">
     <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div class="text-center mb-8">
-            <div class="w-20 h-20 bg-kai-orange-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+            <div class="w-20 h-20 kai-orange-gradient rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="fas fa-train text-white text-3xl"></i>
             </div>
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">KA Parcel Dashboard</h1>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">UPT Terminal Babat Dashboard</h1>
             <p class="text-gray-600">Silakan login untuk melanjutkan</p>
         </div>
 
@@ -81,9 +81,12 @@
                         id="password" 
                         name="password" 
                         required
-                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent transition duration-200 mt-1"
+                        class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent transition duration-200 mt-1"
                         placeholder="Masukkan password"
                     >
+                    <button type="button" id="togglePassword" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700" aria-label="Lihat password">
+                        <i id="togglePasswordIcon" class="fas fa-eye"></i>
+                    </button>
                 </div>
             </div>
 
@@ -97,9 +100,26 @@
         </form>
 
         <div class="text-center mt-6 text-sm text-gray-600">
-            <p> 2026 KA Parcel Dashboard</p>
+            <p> 2026 UPT Terminal Babat Dashboard</p>
             <p class="mt-1">Kereta Api Indonesia</p>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const input = document.getElementById('password');
+            const btn = document.getElementById('togglePassword');
+            const icon = document.getElementById('togglePasswordIcon');
+
+            if (!input || !btn || !icon) return;
+
+            btn.addEventListener('click', function () {
+                const isPassword = input.type === 'password';
+                input.type = isPassword ? 'text' : 'password';
+                icon.classList.toggle('fa-eye', !isPassword);
+                icon.classList.toggle('fa-eye-slash', isPassword);
+            });
+        });
+    </script>
 </body>
 </html>
