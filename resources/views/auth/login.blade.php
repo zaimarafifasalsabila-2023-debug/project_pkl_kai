@@ -17,7 +17,13 @@
         }
         
         body {
-            background: linear-gradient(135deg, var(--kai-navy) 0%, var(--kai-navy-dark) 100%);
+            background-image:
+                linear-gradient(135deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.60) 100%),
+                url("{{ asset('images/bg-login.jpg') }}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
         }
         
         .kai-orange-gradient {

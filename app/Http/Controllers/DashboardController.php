@@ -47,6 +47,11 @@ class DashboardController extends Controller
             ->whereNotNull('volume_berat_kai')
             ->sum('volume_berat_kai');
 
+        $totalVolumeKedatanganAll = (float) (clone $baseYearQuery)
+            ->where('jenis_angkutan', 'kedatangan')
+            ->whereNotNull('volume_berat_kai')
+            ->sum('volume_berat_kai');
+
         // Total customer pada tahun tsb (MUAT + KEDATANGAN)
         // Ini menyesuaikan angka dengan master aktivitas customer pada tahun terpilih.
         $totalCustomer = (int) (clone $baseYearQuery)
@@ -71,6 +76,7 @@ class DashboardController extends Controller
             'tahun',
             'totalCustomer',
             'totalVolumeAll',
+            'totalVolumeKedatanganAll',
             'muatVolumeSBI',
             'muatVolumeBBT',
             'muatVolumeBJ'

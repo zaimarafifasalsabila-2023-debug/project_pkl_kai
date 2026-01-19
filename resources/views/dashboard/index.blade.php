@@ -43,6 +43,24 @@
         </div>
     </div>
 
+    <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Total Volume Kedatangan Seluruh Angkutan</p>
+                <p class="text-3xl font-bold text-gray-800">{{ number_format(((float) ($totalVolumeKedatanganAll ?? 0)) / 1000, 2) }}</p>
+                <p class="text-xs text-gray-500">ton</p>
+            </div>
+            <div class="w-12 h-12 bg-kai-orange rounded-full flex items-center justify-center">
+                <i class="fas fa-train text-white text-xl"></i>
+            </div>
+        </div>
+        <div class="mt-4">
+            <span class="text-gray-600 text-sm">
+                <i class="fas fa-minus"></i> Tidak ada perubahan
+            </span>
+        </div>
+    </div>
+
     <!-- Total Customer Card -->
     <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
         <div class="flex items-center justify-between">
