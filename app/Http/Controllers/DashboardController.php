@@ -13,29 +13,62 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
-        $totalCustomer = Customer::count();
+        $now = now();
 
-        $totalVolumeAll = (float) Angkutan::query()->sum('volume_berat_kai');
-
-        $muatVolumeSBI = (float) Angkutan::query()
+        $availableYears = Angkutan::query()
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->where('jenis_angkutan', 'muat')
-            ->whereNotNull('stasiun_asal_sa')
-            ->whereRaw('UPPER(stasiun_asal_sa) LIKE ?', ['%SBI%'])
+            ->selectRaw('DISTINCT YEAR(tanggal_keberangkatan_asal_ka) as tahun')
+            ->orderByDesc('tahun')
+            ->pluck('tahun')
+            ->map(fn ($y) => (int) $y)
+            ->values();
+
+        if ($availableYears->isEmpty()) {
+            $availableYears = collect([(int) $now->year]);
+        }
+
+        $tahun = (int) ($request->input('tahun') ?? $availableYears->first());
+
+        // Base query untuk data MUAT saja (bukan kedatangan)
+        // Catatan: jangan filter volume_berat_kai di base, karena akan mempengaruhi perhitungan lain (mis. total customer)
+        $baseMuatQuery = Angkutan::query()
+            ->where('jenis_angkutan', 'muat')
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereYear('tanggal_keberangkatan_asal_ka', $tahun);
+
+        // Base query untuk semua data pada tahun tsb (MUAT + KEDATANGAN)
+        $baseYearQuery = Angkutan::query()
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereYear('tanggal_keberangkatan_asal_ka', $tahun);
+
+        // Total volume MUAT seluruh angkutan (akumulasi semua stasiun asal)
+        $totalVolumeAll = (float) (clone $baseMuatQuery)
+            ->whereNotNull('volume_berat_kai')
             ->sum('volume_berat_kai');
 
-        $muatVolumeBBT = (float) Angkutan::query()
-            ->where('jenis_angkutan', 'muat')
-            ->whereNotNull('stasiun_asal_sa')
-            ->whereRaw('UPPER(stasiun_asal_sa) LIKE ?', ['%BBT%'])
-            ->sum('volume_berat_kai');
+        // Total customer pada tahun tsb (MUAT + KEDATANGAN)
+        // Ini menyesuaikan angka dengan master aktivitas customer pada tahun terpilih.
+        $totalCustomer = (int) (clone $baseYearQuery)
+            ->whereNotNull('nama_customer')
+            ->distinct()
+            ->count('nama_customer');
 
-        $muatVolumeBJ = (float) Angkutan::query()
-            ->where('jenis_angkutan', 'muat')
+        // Volume MUAT per stasiun asal (SBI/BBT/BJ)
+        // Gunakan agregasi 1x query agar konsisten dan menghindari filter NOT LIKE yang bisa membuat hasil 0.
+        $stationVolumes = (clone $baseMuatQuery)
+            ->whereNotNull('volume_berat_kai')
             ->whereNotNull('stasiun_asal_sa')
-            ->whereRaw('UPPER(stasiun_asal_sa) LIKE ?', ['%BJ%'])
-            ->sum('volume_berat_kai');
+            ->selectRaw("\n                SUM(CASE WHEN UPPER(TRIM(stasiun_asal_sa)) LIKE '%SBI%' THEN volume_berat_kai ELSE 0 END) as sbi,\n                SUM(CASE WHEN UPPER(TRIM(stasiun_asal_sa)) LIKE '%BBT%' THEN volume_berat_kai ELSE 0 END) as bbt,\n                SUM(CASE WHEN UPPER(TRIM(stasiun_asal_sa)) LIKE '%BJ%' THEN volume_berat_kai ELSE 0 END) as bj\n            ")
+            ->first();
+
+        $muatVolumeSBI = (float) ($stationVolumes->sbi ?? 0);
+        $muatVolumeBBT = (float) ($stationVolumes->bbt ?? 0);
+        $muatVolumeBJ = (float) ($stationVolumes->bj ?? 0);
 
         return view('dashboard.index', compact(
+            'availableYears',
+            'tahun',
             'totalCustomer',
             'totalVolumeAll',
             'muatVolumeSBI',
@@ -270,14 +303,30 @@ class DashboardController extends Controller
         $bulanLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
         $buildMonthlyVolumeByStation = function (int $tahun, string $jenisAngkutan, string $field, string $stationCode) {
-            $rows = Angkutan::query()
+            $query = Angkutan::query()
                 ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
                 ->where('jenis_angkutan', $jenisAngkutan)
-                ->whereYear('tanggal_keberangkatan_asal_ka', $tahun)
                 ->whereNotNull('tanggal_keberangkatan_asal_ka')
-                ->whereRaw('UPPER(' . $field . ') LIKE ?', ['%' . strtoupper($stationCode) . '%'])
-                ->groupBy('bulan')
-                ->get();
+                ->whereNotNull('volume_berat_kai')
+                ->whereYear('tanggal_keberangkatan_asal_ka', $tahun)
+                ->whereNotNull($field);
+            
+            // Filter stasiun dengan lebih tepat
+            if ($stationCode === 'SBI') {
+                $query->whereRaw('UPPER(TRIM(' . $field . ')) LIKE ?', ['%SBI%'])
+                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%BBT%'])
+                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%BJ%']);
+            } elseif ($stationCode === 'BBT') {
+                $query->whereRaw('UPPER(TRIM(' . $field . ')) LIKE ?', ['%BBT%'])
+                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%SBI%'])
+                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%BJ%']);
+            } elseif ($stationCode === 'BJ') {
+                $query->whereRaw('UPPER(TRIM(' . $field . ')) LIKE ?', ['%BJ%'])
+                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%SBI%'])
+                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%BBT%']);
+            }
+            
+            $rows = $query->groupBy('bulan')->get();
 
             $data = array_fill(0, 12, 0.0);
             foreach ($rows as $r) {
@@ -286,7 +335,7 @@ class DashboardController extends Controller
                     $data[$idx] = (float) $r->total;
                 }
             }
-            return $data;
+            return array_map(fn ($v) => (float) $v / 1000, $data);
         };
 
         $kedatanganSBI = $buildMonthlyVolumeByStation($tahunKedatangan, 'kedatangan', 'stasiun_tujuan_sa', 'SBI');
@@ -301,6 +350,7 @@ class DashboardController extends Controller
             ->select('nama_customer')
             ->selectRaw('SUM(volume_berat_kai) as total_volume')
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereNotNull('volume_berat_kai')
             ->whereYear('tanggal_keberangkatan_asal_ka', $mitraTahun)
             ->whereMonth('tanggal_keberangkatan_asal_ka', $mitraBulan)
             ->whereNotNull('nama_customer')
@@ -310,7 +360,7 @@ class DashboardController extends Controller
             ->get();
 
         $mitraLabels = $mitraRows->pluck('nama_customer')->values()->all();
-        $mitraVolumes = $mitraRows->pluck('total_volume')->map(fn ($v) => (float) $v)->values()->all();
+        $mitraVolumes = $mitraRows->pluck('total_volume')->map(fn ($v) => (float) $v / 1000)->values()->all();
 
         $years = Angkutan::query()
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
@@ -326,6 +376,7 @@ class DashboardController extends Controller
 
         $kedatanganYearRows = Angkutan::query()
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereNotNull('volume_berat_kai')
             ->where('jenis_angkutan', 'kedatangan')
             ->selectRaw('YEAR(tanggal_keberangkatan_asal_ka) as tahun, SUM(volume_berat_kai) as total')
             ->groupBy('tahun')
@@ -334,6 +385,7 @@ class DashboardController extends Controller
 
         $muatYearRows = Angkutan::query()
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereNotNull('volume_berat_kai')
             ->where('jenis_angkutan', 'muat')
             ->selectRaw('YEAR(tanggal_keberangkatan_asal_ka) as tahun, SUM(volume_berat_kai) as total')
             ->groupBy('tahun')
@@ -341,11 +393,11 @@ class DashboardController extends Controller
             ->keyBy('tahun');
 
         $volYearKedatangan = $years->map(function ($y) use ($kedatanganYearRows) {
-            return (float) (($kedatanganYearRows[$y]->total ?? 0) ?: 0);
+            return (float) (((($kedatanganYearRows[$y]->total ?? 0) ?: 0)) / 1000);
         })->values()->all();
 
         $volYearMuat = $years->map(function ($y) use ($muatYearRows) {
-            return (float) (($muatYearRows[$y]->total ?? 0) ?: 0);
+            return (float) (((($muatYearRows[$y]->total ?? 0) ?: 0)) / 1000);
         })->values()->all();
 
         $start = Carbon::create($saTahun, $saBulan, 1)->startOfDay();
@@ -387,6 +439,7 @@ class DashboardController extends Controller
 
         $topCustomerQuery = Angkutan::query()
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereNotNull('volume_berat_kai')
             ->where('jenis_angkutan', $topCustomerJenis)
             ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
             ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
@@ -407,7 +460,7 @@ class DashboardController extends Controller
 
         $topCustomerLabels = $topCustomerRows->pluck('nama_customer')->values()->all();
         $topCustomerValues = $topCustomerRows->pluck('total_metric')->map(function ($v) use ($topCustomerMode) {
-            return $topCustomerMode === 'sa' ? (int) $v : (float) $v;
+            return $topCustomerMode === 'sa' ? (int) $v : ((float) $v / 1000);
         })->values()->all();
 
         return view('dashboard.statistik', compact(

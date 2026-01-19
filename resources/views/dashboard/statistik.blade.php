@@ -221,7 +221,7 @@
             <div class="min-w-[144px]">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Mode</label>
                 <select name="top_customer_mode" class="w-32 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
-                    <option value="volume" @selected(request('top_customer_mode', $topCustomerMode ?? 'volume') === 'volume')>Volume</option>
+                    <option value="volume" @selected(request('top_customer_mode', $topCustomerMode ?? 'volume') === 'volume')>Volume (ton)</option>
                     <option value="sa" @selected(request('top_customer_mode', $topCustomerMode ?? 'volume') === 'sa')>Jumlah SA</option>
                 </select>
             </div>
@@ -368,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
             data: {
                 labels: @json($mitraLabels),
                 datasets: [{
-                    label: 'Total Volume (kg)',
+                    label: 'Total Volume (ton)',
                     data: @json($mitraVolumes),
                     backgroundColor: kaiOrange,
                 }]

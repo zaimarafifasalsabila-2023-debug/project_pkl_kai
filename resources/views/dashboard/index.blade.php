@@ -5,12 +5,30 @@
 @section('header', 'Dashboard Utama')
 
 @section('content')
+<div class="bg-white rounded-lg shadow-md p-4 mb-6">
+    <form method="GET" action="{{ route('dashboard') }}" class="flex flex-col sm:flex-row sm:items-end gap-3">
+        <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Filter Berdasarkan Tahun</label>
+            <select name="tahun" id="tahunFilter" class="h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                @foreach(($availableYears ?? []) as $y)
+                    <option value="{{ $y }}" @selected((int)($tahun ?? now()->year) === (int)$y)>{{ $y }}</option>
+                @endforeach
+            </select>
+        </div>
+
+        <button type="submit" class="h-10 px-4 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200 whitespace-nowrap">
+            <i class="fas fa-sort-amount-down mr-2"></i>
+            Terapkan Filter
+        </button>
+    </form>
+</div>
+
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
     <!-- Total Angkutan Card -->
     <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition duration-200">
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-gray-500 text-sm">Total Volume Seluruh Angkutan</p>
+                <p class="text-gray-500 text-sm">Total Volume Muat Seluruh Angkutan</p>
                 <p class="text-3xl font-bold text-gray-800">{{ number_format(((float) $totalVolumeAll) / 1000, 2) }}</p>
                 <p class="text-xs text-gray-500">ton</p>
             </div>
