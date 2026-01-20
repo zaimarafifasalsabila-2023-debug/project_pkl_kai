@@ -326,11 +326,30 @@ class DashboardController extends Controller
 
         $tahun = (int) ($request->input('tahun') ?? $availableYears->first());
 
+        $chartYearNow = (int) ($request->input('chart_tahun_sekarang') ?? $tahun);
+        $chartYearPrev = (int) ($request->input('chart_tahun_sebelumnya') ?? ($chartYearNow - 1));
+        $chartYearTarget = (int) ($request->input('chart_tahun_target') ?? $tahun);
+
+        if ($chartYearNow <= 0) {
+            $chartYearNow = (int) $tahun;
+        }
+        if ($chartYearPrev <= 0) {
+            $chartYearPrev = max(1, $chartYearNow - 1);
+        }
+        if ($chartYearTarget <= 0) {
+            $chartYearTarget = (int) $tahun;
+        }
+
         $bulanLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
         $bulanFullLabels = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
         $targetRows = TargetVolumeMuat::query()
             ->where('tahun_program', $tahun)
+            ->orderBy('bulan')
+            ->get();
+
+        $chartTargetRows = TargetVolumeMuat::query()
+            ->where('tahun_program', $chartYearTarget)
             ->orderBy('bulan')
             ->get();
 
@@ -347,6 +366,11 @@ class DashboardController extends Controller
             $targetByMonth[(int) $row->bulan] = (float) $row->target_kg;
         }
 
+        $chartTargetByMonth = [];
+        foreach ($chartTargetRows as $row) {
+            $chartTargetByMonth[(int) $row->bulan] = (float) $row->target_kg;
+        }
+
         $muatMonthlyRows = Angkutan::query()
             ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
             ->where('jenis_angkutan', 'muat')
@@ -356,8 +380,29 @@ class DashboardController extends Controller
             ->groupByRaw('MONTH(tanggal_keberangkatan_asal_ka)')
             ->pluck('total', 'bulan');
 
+        $muatMonthlyRowsNow = Angkutan::query()
+            ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
+            ->where('jenis_angkutan', 'muat')
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereNotNull('volume_berat_kai')
+            ->whereYear('tanggal_keberangkatan_asal_ka', $chartYearNow)
+            ->groupByRaw('MONTH(tanggal_keberangkatan_asal_ka)')
+            ->pluck('total', 'bulan');
+
+        $muatMonthlyRowsPrev = Angkutan::query()
+            ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
+            ->where('jenis_angkutan', 'muat')
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereNotNull('volume_berat_kai')
+            ->whereYear('tanggal_keberangkatan_asal_ka', $chartYearPrev)
+            ->groupByRaw('MONTH(tanggal_keberangkatan_asal_ka)')
+            ->pluck('total', 'bulan');
+
         $chartActualTons = [];
         $chartTargetTons = [];
+        $chartNowTons = [];
+        $chartPrevTons = [];
+        $chartTargetCompareTons = [];
         $achievementCards = [];
         $yearActualKg = 0.0;
         $yearTargetKg = 0.0;
@@ -370,6 +415,13 @@ class DashboardController extends Controller
 
             $chartActualTons[] = (float) ($actualKg / 1000);
             $chartTargetTons[] = (float) ($targetKg / 1000);
+
+            $nowKg = (float) ((($muatMonthlyRowsNow[$m] ?? 0) ?: 0));
+            $prevKg = (float) ((($muatMonthlyRowsPrev[$m] ?? 0) ?: 0));
+            $targetCompareKg = (float) ((($chartTargetByMonth[$m] ?? 0) ?: 0));
+            $chartNowTons[] = (float) ($nowKg / 1000);
+            $chartPrevTons[] = (float) ($prevKg / 1000);
+            $chartTargetCompareTons[] = (float) ($targetCompareKg / 1000);
 
             $text = 'Belum ada data';
             $type = 'neutral';
@@ -439,6 +491,12 @@ class DashboardController extends Controller
             'initialMonth' => $initialMonth,
             'chartActualTons' => $chartActualTons,
             'chartTargetTons' => $chartTargetTons,
+            'chartYearNow' => $chartYearNow,
+            'chartYearPrev' => $chartYearPrev,
+            'chartYearTarget' => $chartYearTarget,
+            'chartNowTons' => $chartNowTons,
+            'chartPrevTons' => $chartPrevTons,
+            'chartTargetCompareTons' => $chartTargetCompareTons,
         ]);
     }
 
@@ -1357,8 +1415,8 @@ class DashboardController extends Controller
             $data = $this->processExcelFile($file, 'kedatangan');
             
             return redirect()->route('input.data')
-                ->with('success', "Upload kedatangan selesai. Data baru: {$data['inserted']}, duplikat dilewati: {$data['skipped']}.")
-                ->with('activeTab', 'kedatangan');
+                ->with('success', "Upload bongkar selesai. Data baru: {$data['inserted']}, duplikat dilewati: {$data['skipped']}.")
+                ->with('activeTab', 'bongkar');
         } catch (\Exception $e) {
             return back()->with('error', 'Gagal memproses file: ' . $e->getMessage());
         }
@@ -1543,97 +1601,147 @@ class DashboardController extends Controller
                 throw new \Exception('PHP extension ZipArchive (ext-zip) tidak aktif. Aktifkan ext-zip di PHP.');
             }
 
-            $rowsByNumber = $this->readXlsxRows($file->getPathname());
-            if (empty($rowsByNumber)) {
-                throw new \Exception('Tidak ada data yang bisa dibaca dari file XLSX.');
+            $zip = new \ZipArchive();
+            if ($zip->open($file->getPathname()) !== true) {
+                throw new \Exception('Tidak bisa membuka file XLSX (zip).');
             }
 
-            $expectedHeaders = [
-                'nama customer', 'stasiun asal sa', 'stasiun tujuan sa', 'nama ka stasiun asal',
-                'tanggal keberangkatan asal ka', 'nomor sarana', 'volume berat kai',
-                'banyaknya pengajuan', 'status sa', 'nomor sa', 'tanggal pembuatan sa',
-                'tanggal sa', 'jenis hari operasi', 'nomor manifest', 'komoditi'
-            ];
-
-            // Cari baris header dari 1..30
-            $headerRow = null;
-            for ($r = 1; $r <= 30; $r++) {
-                if (!isset($rowsByNumber[$r])) {
-                    continue;
-                }
-
-                $values = array_values($rowsByNumber[$r]);
-                $values = array_map(fn($v) => strtolower(trim((string) $v)), $values);
-
-                $match = 0;
-                foreach ($values as $v) {
-                    if ($v !== '' && in_array($v, $expectedHeaders, true)) {
-                        $match++;
+            $sharedStrings = [];
+            $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
+            if ($sharedXml !== false) {
+                $ss = @simplexml_load_string($sharedXml);
+                if ($ss !== false && isset($ss->si)) {
+                    foreach ($ss->si as $si) {
+                        $text = '';
+                        if (isset($si->t)) {
+                            $text = (string) $si->t;
+                        } elseif (isset($si->r)) {
+                            foreach ($si->r as $r) {
+                                $text .= (string) $r->t;
+                            }
+                        }
+                        $sharedStrings[] = $text;
                     }
                 }
-
-                if ($match >= 4) {
-                    $headerRow = $r;
-                    break;
-                }
-            }
-
-            if ($headerRow === null) {
-                // fallback: pakai baris pertama yang punya isi paling banyak
-                $maxCount = 0;
-                for ($r = 1; $r <= 30; $r++) {
-                    $count = isset($rowsByNumber[$r]) ? count(array_filter($rowsByNumber[$r], fn($v) => $v !== null && trim((string) $v) !== '')) : 0;
-                    if ($count > $maxCount) {
-                        $maxCount = $count;
-                        $headerRow = $r;
-                    }
-                }
-            }
-
-            if ($headerRow === null || !isset($rowsByNumber[$headerRow])) {
-                throw new \Exception('Header tidak ditemukan di file XLSX.');
-            }
-
-            $headersByColumn = [];
-            foreach ($rowsByNumber[$headerRow] as $col => $val) {
-                $headersByColumn[$col] = trim((string) $val);
-            }
-
-            $nonEmptyHeaders = array_filter($headersByColumn, fn($v) => $v !== null && $v !== '');
-            if (empty($nonEmptyHeaders)) {
-                throw new \Exception('Header kosong / tidak valid.');
             }
 
             $data = [];
-            foreach ($rowsByNumber as $rowNum => $cols) {
-                if ($rowNum <= $headerRow) {
+            for ($i = 1; $i <= 30; $i++) {
+                $sheetXml = $zip->getFromName("xl/worksheets/sheet{$i}.xml");
+                if ($sheetXml === false) {
                     continue;
                 }
 
-                $hasData = false;
-                $rowData = [];
-                foreach ($headersByColumn as $col => $header) {
-                    if ($header === null || $header === '') {
-                        continue;
-                    }
-
-                    $cellValue = $cols[$col] ?? null;
-                    if ($cellValue !== null && trim((string) $cellValue) !== '') {
-                        $hasData = true;
-                    }
-
-                    $rowData[$header] = $cellValue;
+                $rowsByNumber = $this->readXlsxRowsFromXml($sheetXml, $sharedStrings);
+                if (empty($rowsByNumber)) {
+                    continue;
                 }
 
-                if ($hasData) {
-                    $data[] = $rowData;
+                $sheetData = $this->parseAngkutanFromSheetRows($rowsByNumber);
+                foreach ($sheetData as $r) {
+                    $data[] = $r;
                 }
+            }
+
+            $zip->close();
+
+            if (empty($data)) {
+                throw new \Exception('Tidak ada data yang bisa dibaca dari file XLSX.');
             }
 
             return $data;
         } catch (\Throwable $e) {
             throw new \Exception('Failed to read Excel file: ' . $e->getMessage());
         }
+    }
+
+    private function parseAngkutanFromSheetRows(array $rowsByNumber): array
+    {
+        if (empty($rowsByNumber)) {
+            return [];
+        }
+
+        $expectedHeaders = [
+            'nama customer', 'stasiun asal sa', 'stasiun tujuan sa', 'nama ka stasiun asal',
+            'tanggal keberangkatan asal ka', 'nomor sarana', 'volume berat kai',
+            'banyaknya pengajuan', 'status sa', 'nomor sa', 'tanggal pembuatan sa',
+            'tanggal sa', 'jenis hari operasi', 'nomor manifest', 'komoditi'
+        ];
+
+        $headerRow = null;
+        for ($r = 1; $r <= 60; $r++) {
+            if (!isset($rowsByNumber[$r])) {
+                continue;
+            }
+
+            $values = array_values($rowsByNumber[$r]);
+            $values = array_map(fn($v) => strtolower(trim((string) $v)), $values);
+
+            $match = 0;
+            foreach ($values as $v) {
+                if ($v !== '' && in_array($v, $expectedHeaders, true)) {
+                    $match++;
+                }
+            }
+
+            if ($match >= 4) {
+                $headerRow = $r;
+                break;
+            }
+        }
+
+        if ($headerRow === null) {
+            $maxCount = 0;
+            for ($r = 1; $r <= 60; $r++) {
+                $count = isset($rowsByNumber[$r]) ? count(array_filter($rowsByNumber[$r], fn($v) => $v !== null && trim((string) $v) !== '')) : 0;
+                if ($count > $maxCount) {
+                    $maxCount = $count;
+                    $headerRow = $r;
+                }
+            }
+        }
+
+        if ($headerRow === null || !isset($rowsByNumber[$headerRow])) {
+            return [];
+        }
+
+        $headersByColumn = [];
+        foreach ($rowsByNumber[$headerRow] as $col => $val) {
+            $headersByColumn[$col] = trim((string) $val);
+        }
+
+        $nonEmptyHeaders = array_filter($headersByColumn, fn($v) => $v !== null && $v !== '');
+        if (empty($nonEmptyHeaders)) {
+            return [];
+        }
+
+        $data = [];
+        foreach ($rowsByNumber as $rowNum => $cols) {
+            if ($rowNum <= $headerRow) {
+                continue;
+            }
+
+            $hasData = false;
+            $rowData = [];
+            foreach ($headersByColumn as $col => $header) {
+                if ($header === null || $header === '') {
+                    continue;
+                }
+
+                $cellValue = $cols[$col] ?? null;
+                if ($cellValue !== null && trim((string) $cellValue) !== '') {
+                    $hasData = true;
+                }
+
+                $rowData[$header] = $cellValue;
+            }
+
+            if ($hasData) {
+                $data[] = $rowData;
+            }
+        }
+
+        return $data;
     }
 
     private function readXlsxRows(string $path): array
@@ -1766,6 +1874,8 @@ class DashboardController extends Controller
 
     private function processExcelFile($file, $jenisAngkutan)
     {
+        @set_time_limit(0);
+
         $extension = $file->getClientOriginalExtension();
         
         if ($extension == 'csv') {
@@ -1776,6 +1886,9 @@ class DashboardController extends Controller
         
         $inserted = 0;
         $skipped = 0;
+        $seenKeys = [];
+
+        $candidateRows = [];
         
         foreach ($data as $row) {
             try {
@@ -1800,42 +1913,15 @@ class DashboardController extends Controller
                     continue; // Skip rows with missing required data
                 }
 
-                $dupQuery = Angkutan::query()
-                    ->where('jenis_angkutan', $jenisAngkutan)
-                    ->whereDate('tanggal_keberangkatan_asal_ka', $angkutanData['tanggal_keberangkatan_asal_ka'])
-                    ->where('nama_customer', $angkutanData['nama_customer'])
-                    ->where('stasiun_asal_sa', $angkutanData['stasiun_asal_sa'])
-                    ->where('nama_ka_stasiun_asal', $angkutanData['nama_ka_stasiun_asal']);
-
-                if (!empty($angkutanData['nomor_sarana'])) {
-                    $dupQuery->where('nomor_sarana', $angkutanData['nomor_sarana']);
-                } else {
-                    $dupQuery->where(function ($q) {
-                        $q->whereNull('nomor_sarana')->orWhere('nomor_sarana', '');
-                    });
-                }
-
-                if (!empty($angkutanData['stasiun_tujuan_sa'])) {
-                    $dupQuery->where('stasiun_tujuan_sa', $angkutanData['stasiun_tujuan_sa']);
-                } else {
-                    $dupQuery->where(function ($q) {
-                        $q->whereNull('stasiun_tujuan_sa')->orWhere('stasiun_tujuan_sa', '');
-                    });
-                }
-
-                if ($dupQuery->exists()) {
+                $dedupHash = $this->buildAngkutanDedupHash($jenisAngkutan, $angkutanData);
+                if (isset($seenKeys[$dedupHash])) {
                     $skipped++;
                     continue;
                 }
-                
-                // Create customer if not exists
-                Customer::firstOrCreate([
-                    'nama_customer' => $angkutanData['nama_customer']
-                ]);
-                
-                // Create angkutan record
-                Angkutan::create($angkutanData);
-                $inserted++;
+
+                $seenKeys[$dedupHash] = true;
+                $angkutanData['_dedup_hash'] = $dedupHash;
+                $candidateRows[] = $angkutanData;
                 
             } catch (\Throwable $e) {
                 // Skip invalid rows but continue processing
@@ -1843,8 +1929,102 @@ class DashboardController extends Controller
                 continue;
             }
         }
+
+        if (empty($candidateRows)) {
+            return ['inserted' => $inserted, 'skipped' => $skipped];
+        }
+
+        $hashExpr = $this->getAngkutanDedupHashSqlExpression();
+        $chunkSize = 400;
+        foreach (array_chunk($candidateRows, $chunkSize) as $chunk) {
+            $hashes = array_values(array_unique(array_map(fn ($r) => $r['_dedup_hash'], $chunk)));
+
+            $existingHashes = Angkutan::query()
+                ->where('jenis_angkutan', $jenisAngkutan)
+                ->whereIn(DB::raw($hashExpr), $hashes)
+                ->selectRaw($hashExpr . ' as dedup_hash')
+                ->pluck('dedup_hash')
+                ->all();
+
+            $existingSet = [];
+            foreach ($existingHashes as $h) {
+                $existingSet[$h] = true;
+            }
+
+            $rowsToInsert = [];
+            $customerNames = [];
+            foreach ($chunk as $row) {
+                $h = $row['_dedup_hash'];
+                if (isset($existingSet[$h])) {
+                    $skipped++;
+                    continue;
+                }
+
+                unset($row['_dedup_hash']);
+                $rowsToInsert[] = $row;
+                if (!empty($row['nama_customer'])) {
+                    $customerNames[] = $row['nama_customer'];
+                }
+            }
+
+            if (!empty($customerNames)) {
+                $customerNames = array_values(array_unique($customerNames));
+                $existingCustomers = Customer::query()
+                    ->whereIn('nama_customer', $customerNames)
+                    ->pluck('nama_customer')
+                    ->all();
+
+                $existingCustomerSet = [];
+                foreach ($existingCustomers as $name) {
+                    $existingCustomerSet[$name] = true;
+                }
+
+                $newCustomers = [];
+                foreach ($customerNames as $name) {
+                    if (isset($existingCustomerSet[$name])) {
+                        continue;
+                    }
+                    $newCustomers[] = [
+                        'nama_customer' => $name,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+
+                if (!empty($newCustomers)) {
+                    Customer::query()->insert($newCustomers);
+                }
+            }
+
+            if (!empty($rowsToInsert)) {
+                foreach (array_chunk($rowsToInsert, 500) as $insertChunk) {
+                    DB::table('angkutan')->insert($insertChunk);
+                    $inserted += count($insertChunk);
+                }
+            }
+        }
         
         return ['inserted' => $inserted, 'skipped' => $skipped];
+    }
+
+    private function buildAngkutanDedupHash(string $jenisAngkutan, array $angkutanData): string
+    {
+        $parts = [
+            strtolower(trim((string) $jenisAngkutan)),
+            (string) ($angkutanData['tanggal_keberangkatan_asal_ka'] ?? ''),
+            strtolower(trim((string) ($angkutanData['nama_customer'] ?? ''))),
+            strtolower(trim((string) ($angkutanData['stasiun_asal_sa'] ?? ''))),
+            strtolower(trim((string) ($angkutanData['nama_ka_stasiun_asal'] ?? ''))),
+            strtolower(trim((string) ($angkutanData['nomor_sarana'] ?? ''))),
+            strtolower(trim((string) ($angkutanData['stasiun_tujuan_sa'] ?? ''))),
+        ];
+
+        return md5(implode('|', $parts));
+    }
+
+    private function getAngkutanDedupHashSqlExpression(): string
+    {
+        return "MD5(CONCAT_WS('|', jenis_angkutan, DATE(tanggal_keberangkatan_asal_ka), LOWER(TRIM(nama_customer)), LOWER(TRIM(stasiun_asal_sa)), LOWER(TRIM(nama_ka_stasiun_asal)), LOWER(TRIM(COALESCE(nomor_sarana,''))), LOWER(TRIM(COALESCE(stasiun_tujuan_sa,'')))))";
     }
 
     private function findColumnValue($row, $possibleKeys)

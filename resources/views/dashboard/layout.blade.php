@@ -137,7 +137,7 @@
     <div class="flex h-screen relative">
         <!-- Sidebar -->
         <div id="sidebar" class="sidebar-transition w-64 kai-gradient text-white fixed h-full z-40">
-            <div class="p-6 sidebar-header">
+            <div class="p-4 sm:p-6 sidebar-header">
                 <div class="flex items-center justify-between">
                     <h1 class="text-2xl font-bold flex items-center">
                         <i class="fas fa-train mr-2 text-kai-orange"></i>
@@ -179,7 +179,7 @@
         <div id="mainContent" class="flex-1 flex flex-col overflow-hidden sidebar-transition ml-64">
             <!-- Header -->
             <header class="bg-white shadow-sm border-b">
-                <div class="px-6 py-4 flex items-center justify-between">
+                <div class="px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
                     <h2 class="text-xl font-semibold text-gray-800">@yield('header', 'Dashboard')</h2>
                     <div class="flex items-center gap-3">
                         <span class="text-gray-600">Welcome, {{ Auth::user()->name }}</span>
@@ -199,7 +199,7 @@
             </header>
 
             <!-- Content -->
-            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6 page-enter">
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6 page-enter">
                 @yield('content')
             </main>
         </div>
