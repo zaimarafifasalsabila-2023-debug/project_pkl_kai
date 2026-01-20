@@ -59,6 +59,15 @@ Route::middleware('auth.session')->group(function () {
     Route::get('/preview-data', [DashboardController::class, 'previewData'])
         ->name('preview.data');
 
+    Route::get('/preview-target', [DashboardController::class, 'previewTarget'])
+        ->name('preview.target');
+
+    Route::post('/preview-target/preview', [DashboardController::class, 'previewTargetPreview'])
+        ->name('preview.target.preview');
+
+    Route::post('/preview-target/store', [DashboardController::class, 'previewTargetStore'])
+        ->name('preview.target.store');
+
     Route::get('/preview-data/export/excel', [DashboardController::class, 'exportPreviewDataExcel'])
         ->name('preview.data.export.excel');
 

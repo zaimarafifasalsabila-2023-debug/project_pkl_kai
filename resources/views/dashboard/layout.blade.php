@@ -58,6 +58,79 @@
         .text-kai-orange { color: var(--kai-orange); }
         .text-kai-navy { color: var(--kai-navy); }
         .border-kai-orange { border-color: var(--kai-orange); }
+
+        .page-enter {
+            opacity: 0;
+            transform: translateY(6px);
+            animation: pageEnter 450ms ease forwards;
+        }
+
+        @keyframes pageEnter {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 500ms ease, transform 500ms ease;
+            will-change: opacity, transform;
+        }
+
+        .reveal.reveal-active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .page-enter {
+                opacity: 1;
+                transform: none;
+                animation: none;
+            }
+
+            .reveal {
+                opacity: 1;
+                transform: none;
+                transition: none;
+            }
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            pointer-events: auto;
+            min-width: 280px;
+            max-width: 420px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            background: #fff;
+            opacity: 0;
+            transform: translateY(-8px);
+            transition: opacity 220ms ease, transform 220ms ease;
+        }
+
+        .toast.toast-show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast-success { border-left: 6px solid #16a34a; }
+        .toast-warning { border-left: 6px solid #f59e0b; }
+        .toast-error { border-left: 6px solid #dc2626; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -89,6 +162,10 @@
                 <a href="{{ route('preview.data') }}" class="flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('preview.data') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
                     <i class="fas fa-eye w-5 text-kai-orange"></i>
                     <span class="sidebar-text ml-3">Preview Data</span>
+                </a>
+                <a href="{{ route('preview.target') }}" class="flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('preview.target') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
+                    <i class="fas fa-bullseye w-5 text-kai-orange"></i>
+                    <span class="sidebar-text ml-3">Capaian Target</span>
                 </a>
                 <a href="{{ route('statistik') }}" class="flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('statistik') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
                     <i class="fas fa-chart-bar w-5 text-kai-orange"></i>
@@ -122,11 +199,13 @@
             </header>
 
             <!-- Content -->
-            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6 page-enter">
                 @yield('content')
             </main>
         </div>
     </div>
+
+    <div id="toastContainer" class="toast-container"></div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -170,6 +249,71 @@
 
                 applyState();
             });
+
+            const revealEls = document.querySelectorAll('.reveal');
+            if (revealEls && revealEls.length > 0 && 'IntersectionObserver' in window) {
+                const io = new IntersectionObserver((entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add('reveal-active');
+                            io.unobserve(entry.target);
+                        }
+                    });
+                }, { threshold: 0.12 });
+
+                revealEls.forEach((el) => io.observe(el));
+            } else {
+                revealEls.forEach((el) => el.classList.add('reveal-active'));
+            }
+
+            const toastContainer = document.getElementById('toastContainer');
+            window.showToast = function (type, message) {
+                if (!toastContainer) {
+                    return;
+                }
+
+                const toast = document.createElement('div');
+                toast.className = 'toast ' + (type ? ('toast-' + type) : '');
+
+                const wrap = document.createElement('div');
+                wrap.className = 'flex items-start gap-3';
+
+                const icon = document.createElement('div');
+                icon.className = 'mt-0.5';
+                let iconHtml = '<i class="fas fa-check-circle text-green-600"></i>';
+                if (type === 'warning') {
+                    iconHtml = '<i class="fas fa-exclamation-triangle text-yellow-600"></i>';
+                } else if (type === 'error') {
+                    iconHtml = '<i class="fas fa-times-circle text-red-600"></i>';
+                }
+                icon.innerHTML = iconHtml;
+
+                const text = document.createElement('div');
+                text.className = 'text-sm text-gray-800';
+                text.textContent = String(message || '');
+
+                const close = document.createElement('button');
+                close.type = 'button';
+                close.className = 'ml-auto text-gray-400 hover:text-gray-600';
+                close.innerHTML = '<i class="fas fa-times"></i>';
+                close.addEventListener('click', function () {
+                    toast.classList.remove('toast-show');
+                    setTimeout(() => toast.remove(), 220);
+                });
+
+                wrap.appendChild(icon);
+                wrap.appendChild(text);
+                wrap.appendChild(close);
+                toast.appendChild(wrap);
+                toastContainer.appendChild(toast);
+
+                requestAnimationFrame(() => toast.classList.add('toast-show'));
+
+                setTimeout(() => {
+                    toast.classList.remove('toast-show');
+                    setTimeout(() => toast.remove(), 220);
+                }, 4200);
+            };
         });
     </script>
 </body>

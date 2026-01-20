@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use App\Models\Angkutan;
 use App\Models\Customer;
 use App\Models\Station;
+use App\Models\TargetVolumeMuat;
 
 class DashboardController extends Controller
 {
@@ -290,6 +291,776 @@ class DashboardController extends Controller
             ->pluck('stasiun_tujuan_sa');
 
         return view('dashboard.preview-data', compact('data', 'customers', 'stasiunAsalList', 'stasiunTujuanList'));
+    }
+
+    public function previewTarget(Request $request)
+    {
+        $now = now();
+
+        $yearsFromTarget = TargetVolumeMuat::query()
+            ->select('tahun_program')
+            ->distinct()
+            ->orderByDesc('tahun_program')
+            ->pluck('tahun_program')
+            ->map(fn ($y) => (int) $y)
+            ->values();
+
+        $yearsFromMuat = Angkutan::query()
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->where('jenis_angkutan', 'muat')
+            ->selectRaw('DISTINCT YEAR(tanggal_keberangkatan_asal_ka) as tahun')
+            ->orderByDesc('tahun')
+            ->pluck('tahun')
+            ->map(fn ($y) => (int) $y)
+            ->values();
+
+        $availableYears = $yearsFromTarget
+            ->merge($yearsFromMuat)
+            ->unique()
+            ->sortDesc()
+            ->values();
+
+        if ($availableYears->isEmpty()) {
+            $availableYears = collect([(int) $now->year]);
+        }
+
+        $tahun = (int) ($request->input('tahun') ?? $availableYears->first());
+
+        $bulanLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        $bulanFullLabels = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+        $targetRows = TargetVolumeMuat::query()
+            ->where('tahun_program', $tahun)
+            ->orderBy('bulan')
+            ->get();
+
+        $targetListQuery = TargetVolumeMuat::query()
+            ->where('tahun_program', $tahun);
+
+        $targetList = $targetListQuery
+            ->orderBy('bulan')
+            ->paginate(24)
+            ->appends($request->query());
+
+        $targetByMonth = [];
+        foreach ($targetRows as $row) {
+            $targetByMonth[(int) $row->bulan] = (float) $row->target_kg;
+        }
+
+        $muatMonthlyRows = Angkutan::query()
+            ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
+            ->where('jenis_angkutan', 'muat')
+            ->whereNotNull('tanggal_keberangkatan_asal_ka')
+            ->whereNotNull('volume_berat_kai')
+            ->whereYear('tanggal_keberangkatan_asal_ka', $tahun)
+            ->groupByRaw('MONTH(tanggal_keberangkatan_asal_ka)')
+            ->pluck('total', 'bulan');
+
+        $chartActualTons = [];
+        $chartTargetTons = [];
+        $achievementCards = [];
+        $yearActualKg = 0.0;
+        $yearTargetKg = 0.0;
+        for ($m = 1; $m <= 12; $m++) {
+            $actualKg = (float) ((($muatMonthlyRows[$m] ?? 0) ?: 0));
+            $targetKg = (float) ((($targetByMonth[$m] ?? 0) ?: 0));
+
+            $yearActualKg += $actualKg;
+            $yearTargetKg += $targetKg;
+
+            $chartActualTons[] = (float) ($actualKg / 1000);
+            $chartTargetTons[] = (float) ($targetKg / 1000);
+
+            $text = 'Belum ada data';
+            $type = 'neutral';
+            $percent = null;
+
+            if ($targetKg > 0) {
+                $diffPct = (($actualKg - $targetKg) / $targetKg) * 100;
+                $percent = (float) abs($diffPct);
+                if ($diffPct >= 0) {
+                    $text = 'Lebih dari target ' . number_format($percent, 2) . '%';
+                    $type = 'over';
+                } else {
+                    $text = 'Kurang dari target ' . number_format($percent, 2) . '%';
+                    $type = 'under';
+                }
+            } elseif ($actualKg > 0) {
+                $text = 'Target belum ada';
+                $type = 'neutral';
+            }
+
+            $achievementCards[] = [
+                'bulan' => $m,
+                'label' => $bulanFullLabels[$m - 1] ?? (string) $m,
+                'text' => $text,
+                'type' => $type,
+                'actual_ton' => (float) ($actualKg / 1000),
+                'target_ton' => (float) ($targetKg / 1000),
+            ];
+        }
+
+        $yearText = 'Belum ada data';
+        $yearType = 'neutral';
+        if ($yearTargetKg > 0) {
+            $diffPct = (($yearActualKg - $yearTargetKg) / $yearTargetKg) * 100;
+            $pct = (float) abs($diffPct);
+            if ($diffPct >= 0) {
+                $yearText = 'Lebih dari target ' . number_format($pct, 2) . '%';
+                $yearType = 'over';
+            } else {
+                $yearText = 'Kurang dari target ' . number_format($pct, 2) . '%';
+                $yearType = 'under';
+            }
+        } elseif ($yearActualKg > 0) {
+            $yearText = 'Target belum ada';
+            $yearType = 'neutral';
+        }
+
+        $initialMonth = (int) $now->month;
+        if ($initialMonth < 1 || $initialMonth > 12) {
+            $initialMonth = 1;
+        }
+
+        return view('dashboard.preview-target', [
+            'availableYears' => $availableYears,
+            'tahun' => $tahun,
+            'targetRows' => $targetRows,
+            'targetList' => $targetList,
+            'bulanLabels' => $bulanLabels,
+            'achievementCards' => $achievementCards,
+            'yearAchievement' => [
+                'label' => 'Tahun ' . $tahun,
+                'text' => $yearText,
+                'type' => $yearType,
+                'actual_ton' => (float) ($yearActualKg / 1000),
+                'target_ton' => (float) ($yearTargetKg / 1000),
+            ],
+            'initialMonth' => $initialMonth,
+            'chartActualTons' => $chartActualTons,
+            'chartTargetTons' => $chartTargetTons,
+        ]);
+    }
+
+    public function previewTargetPreview(Request $request)
+    {
+        try {
+            $request->validate([
+                'file' => 'required|mimes:xlsx,csv|max:10240',
+            ]);
+
+            $file = $request->file('file');
+            if (!$file || !$file->isValid()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Invalid file upload',
+                ]);
+            }
+
+            $parsed = $this->readTargetFile($file);
+
+            return response()->json([
+                'success' => true,
+                'tahun_program' => $parsed['tahun_program'],
+                'tahun_programs' => $parsed['tahun_programs'] ?? [$parsed['tahun_program']],
+                'rows' => array_slice($parsed['rows'], 0, 10),
+                'total_rows' => count($parsed['rows']),
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed: ' . implode(', ', $e->errors()),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Preview target error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to process file: ' . $e->getMessage(),
+            ], 200);
+        }
+    }
+
+    public function previewTargetStore(Request $request)
+    {
+        try {
+            $request->validate([
+                'file' => 'required|mimes:xlsx,csv|max:10240',
+            ]);
+
+            $file = $request->file('file');
+            if (!$file || !$file->isValid()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Invalid file upload',
+                ]);
+            }
+
+            $parsed = $this->readTargetFile($file);
+            $rows = $parsed['rows'];
+
+            $tahunPrograms = $parsed['tahun_programs'] ?? [$parsed['tahun_program']];
+            $tahunPrograms = array_values(array_unique(array_map(fn ($y) => (int) $y, $tahunPrograms)));
+            sort($tahunPrograms);
+
+            $existing = TargetVolumeMuat::query()
+                ->whereIn('tahun_program', $tahunPrograms)
+                ->get(['tahun_program', 'bulan']);
+
+            $existingSet = [];
+            foreach ($existing as $e) {
+                $existingSet[((int) $e->tahun_program) . '-' . ((int) $e->bulan)] = true;
+            }
+
+            $inserted = 0;
+            $skipped = 0;
+
+            DB::transaction(function () use ($rows, &$inserted, &$skipped, &$existingSet) {
+                foreach ($rows as $row) {
+                    $y = (int) $row['tahun_program'];
+                    $m = (int) $row['bulan'];
+                    $key = $y . '-' . $m;
+                    if (isset($existingSet[$key])) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    TargetVolumeMuat::query()->create([
+                        'tahun_program' => $y,
+                        'bulan' => $m,
+                        'target_kg' => (int) $row['target_kg'],
+                    ]);
+                    $existingSet[$key] = true;
+                    $inserted++;
+                }
+            });
+
+            $redirectYear = null;
+            if (!empty($tahunPrograms)) {
+                $redirectYear = $tahunPrograms[0];
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Upload selesai. Baris baru: ' . $inserted . ', duplikat dilewati: ' . $skipped . '.',
+                'inserted' => $inserted,
+                'skipped' => $skipped,
+                'tahun_program' => $redirectYear,
+                'tahun_programs' => $tahunPrograms,
+                'total_rows' => count($rows),
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed: ' . implode(', ', $e->errors()),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Store target error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to save data: ' . $e->getMessage(),
+            ], 200);
+        }
+    }
+
+    private function readTargetFile($file): array
+    {
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+
+        if ($extension === 'csv') {
+            return $this->readTargetCsvFile($file);
+        }
+
+        return $this->readTargetExcelFile($file);
+    }
+
+    private function readTargetCsvFile($file): array
+    {
+        $handle = fopen($file->getPathname(), 'r');
+        if ($handle === false) {
+            throw new \Exception('Cannot open CSV file');
+        }
+
+        try {
+            $rows = [];
+            while (($row = fgetcsv($handle, 2000, ',')) !== false) {
+                $rows[] = $row;
+            }
+
+            if (empty($rows)) {
+                throw new \Exception('CSV file is empty');
+            }
+
+            $tahunProgram = null;
+            $headerRowIndex = null;
+            $bulanCol = null;
+            $kgCol = null;
+
+            for ($i = 0; $i < min(25, count($rows)); $i++) {
+                foreach ($rows[$i] as $c => $cell) {
+                    $cellStr = trim((string) $cell);
+                    if ($tahunProgram === null && preg_match('/PROGRAM\s*TAHUN\s*(\d{4})/i', $cellStr, $m)) {
+                        $tahunProgram = (int) $m[1];
+                    }
+                    if ($bulanCol === null && strtoupper($cellStr) === 'BULAN') {
+                        $headerRowIndex = $i;
+                        $bulanCol = $c;
+                    }
+                }
+            }
+
+            if ($headerRowIndex === null || $bulanCol === null) {
+                throw new \Exception('Header BULAN tidak ditemukan di CSV');
+            }
+
+            for ($c = 0; $c < count($rows[$headerRowIndex]); $c++) {
+                $cellStr = strtoupper(trim((string) ($rows[$headerRowIndex][$c] ?? '')));
+                if ($cellStr === 'KG') {
+                    $kgCol = $c;
+                    break;
+                }
+            }
+
+            if ($kgCol === null) {
+                for ($c = 0; $c < count($rows[$headerRowIndex]); $c++) {
+                    $cellStr = strtoupper(trim((string) ($rows[$headerRowIndex][$c] ?? '')));
+                    if (str_contains($cellStr, 'KG')) {
+                        $kgCol = $c;
+                        break;
+                    }
+                }
+            }
+
+            if ($kgCol === null) {
+                throw new \Exception('Kolom KG tidak ditemukan di CSV');
+            }
+
+            if ($tahunProgram === null) {
+                throw new \Exception('Tahun program tidak ditemukan di CSV (PROGRAM TAHUN XXXX)');
+            }
+
+            $parsedRows = [];
+            for ($i = $headerRowIndex + 1; $i < count($rows); $i++) {
+                $bulanRaw = trim((string) ($rows[$i][$bulanCol] ?? ''));
+                if ($bulanRaw === '') {
+                    continue;
+                }
+
+                if (strtoupper($bulanRaw) === 'TOTAL') {
+                    break;
+                }
+
+                $bulanNum = $this->parseBulanToNumber($bulanRaw);
+                if ($bulanNum === null) {
+                    continue;
+                }
+
+                $kgRaw = $rows[$i][$kgCol] ?? null;
+                $kg = $this->parseNumberToInt($kgRaw);
+
+                $parsedRows[] = [
+                    'tahun_program' => $tahunProgram,
+                    'bulan' => $bulanNum,
+                    'target_kg' => $kg,
+                ];
+            }
+
+            if (empty($parsedRows)) {
+                throw new \Exception('Tidak ada data target yang terbaca dari CSV');
+            }
+
+            return [
+                'tahun_program' => $tahunProgram,
+                'tahun_programs' => [$tahunProgram],
+                'rows' => $parsedRows,
+            ];
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    private function readTargetExcelFile($file): array
+    {
+        if (!class_exists('\\ZipArchive')) {
+            throw new \Exception('PHP extension ZipArchive (ext-zip) tidak aktif. Aktifkan ext-zip di PHP.');
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($file->getPathname()) !== true) {
+            throw new \Exception('Tidak bisa membuka file XLSX (zip).');
+        }
+
+        $sharedStrings = [];
+        $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($sharedXml !== false) {
+            $ss = @simplexml_load_string($sharedXml);
+            if ($ss !== false && isset($ss->si)) {
+                foreach ($ss->si as $si) {
+                    $text = '';
+                    if (isset($si->t)) {
+                        $text = (string) $si->t;
+                    } elseif (isset($si->r)) {
+                        foreach ($si->r as $r) {
+                            $text .= (string) $r->t;
+                        }
+                    }
+                    $sharedStrings[] = $text;
+                }
+            }
+        }
+
+        $allRows = [];
+        $tahunPrograms = [];
+        for ($i = 1; $i <= 30; $i++) {
+            $sheetXml = $zip->getFromName("xl/worksheets/sheet{$i}.xml");
+            if ($sheetXml === false) {
+                continue;
+            }
+
+            $rowsByNumber = $this->readXlsxRowsFromXml($sheetXml, $sharedStrings);
+            if (empty($rowsByNumber)) {
+                continue;
+            }
+
+            $parsedSheet = $this->parseTargetFromSheetRows($rowsByNumber);
+            if ($parsedSheet === null) {
+                continue;
+            }
+
+            $tahunPrograms[] = (int) $parsedSheet['tahun_program'];
+            foreach (($parsedSheet['rows'] ?? []) as $r) {
+                $allRows[] = $r;
+            }
+        }
+
+        $zip->close();
+
+        if (empty($allRows)) {
+            throw new \Exception('Tidak ada data target yang terbaca dari XLSX');
+        }
+
+        $tahunPrograms = array_values(array_unique(array_map(fn ($y) => (int) $y, $tahunPrograms)));
+        sort($tahunPrograms);
+
+        usort($allRows, function ($a, $b) {
+            $ya = (int) ($a['tahun_program'] ?? 0);
+            $yb = (int) ($b['tahun_program'] ?? 0);
+            if ($ya !== $yb) {
+                return $ya <=> $yb;
+            }
+            return ((int) ($a['bulan'] ?? 0)) <=> ((int) ($b['bulan'] ?? 0));
+        });
+
+        $primaryYear = $tahunPrograms[0] ?? null;
+        if ($primaryYear === null) {
+            $primaryYear = (int) ($allRows[0]['tahun_program'] ?? 0);
+        }
+
+        return [
+            'tahun_program' => $primaryYear,
+            'tahun_programs' => $tahunPrograms,
+            'rows' => $allRows,
+        ];
+    }
+
+    private function readXlsxRowsFromXml(string $sheetXml, array $sharedStrings): array
+    {
+        $xml = @simplexml_load_string($sheetXml);
+        if ($xml === false || !isset($xml->sheetData)) {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($xml->sheetData->row as $row) {
+            $rowNum = (int) $row['r'];
+            if (!isset($rows[$rowNum])) {
+                $rows[$rowNum] = [];
+            }
+
+            foreach ($row->c as $c) {
+                $ref = (string) $c['r'];
+                if (!preg_match('/^([A-Z]+)(\d+)$/', $ref, $m)) {
+                    continue;
+                }
+                $col = $m[1];
+
+                $type = (string) $c['t'];
+                $value = null;
+
+                if ($type === 's') {
+                    $idx = (int) $c->v;
+                    $value = $sharedStrings[$idx] ?? null;
+                } elseif ($type === 'inlineStr') {
+                    $value = isset($c->is->t) ? (string) $c->is->t : null;
+                } else {
+                    $value = isset($c->v) ? (string) $c->v : null;
+                }
+
+                $rows[$rowNum][$col] = $value;
+            }
+        }
+
+        ksort($rows);
+        if (empty($rows)) {
+            return [];
+        }
+
+        $maxCol = 'A';
+        foreach ($rows as $cols) {
+            foreach (array_keys($cols) as $col) {
+                if ($this->colToIndex($col) > $this->colToIndex($maxCol)) {
+                    $maxCol = $col;
+                }
+            }
+        }
+
+        $normalized = [];
+        foreach ($rows as $r => $cols) {
+            $normalized[$r] = [];
+            $maxIndex = $this->colToIndex($maxCol);
+            for ($i = 1; $i <= $maxIndex; $i++) {
+                $col = $this->indexToCol($i);
+                $normalized[$r][$col] = $cols[$col] ?? null;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function parseTargetFromSheetRows(array $rowsByNumber): ?array
+    {
+        $tahunProgram = null;
+        $programHeaderRow = null;
+        $programHeaderCol = null;
+        $bulanCol = null;
+        $kgCol = null;
+        $dataStartRow = null;
+
+        for ($r = 1; $r <= 40; $r++) {
+            if (!isset($rowsByNumber[$r])) {
+                continue;
+            }
+
+            foreach ($rowsByNumber[$r] as $col => $val) {
+                $cellStr = trim((string) $val);
+                if ($bulanCol === null && strtoupper($cellStr) === 'BULAN') {
+                    $bulanCol = $col;
+                }
+
+                if ($tahunProgram === null && preg_match('/PROGRAM\s*TAHUN\s*(\d{4})/i', $cellStr, $m)) {
+                    $tahunProgram = (int) $m[1];
+                    $programHeaderRow = $r;
+                    $programHeaderCol = $col;
+                }
+            }
+        }
+
+        if ($tahunProgram === null) {
+            for ($r = 1; $r <= 60; $r++) {
+                if (!isset($rowsByNumber[$r])) {
+                    continue;
+                }
+                foreach ($rowsByNumber[$r] as $col => $val) {
+                    $cellStr = trim((string) $val);
+                    if (preg_match('/PROGRAM\s*TAHUN\s*(\d{4})/i', $cellStr, $m)) {
+                        $tahunProgram = (int) $m[1];
+                        $programHeaderRow = $r;
+                        $programHeaderCol = $col;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if ($bulanCol === null || $tahunProgram === null) {
+            return null;
+        }
+
+        $maxCol = null;
+        $firstRowKey = array_key_first($rowsByNumber);
+        if ($firstRowKey !== null && isset($rowsByNumber[$firstRowKey])) {
+            $maxCol = array_key_last($rowsByNumber[$firstRowKey]);
+        }
+        if ($maxCol === null) {
+            $maxCol = 'Z';
+        }
+
+        if ($programHeaderRow !== null && $programHeaderCol !== null && isset($rowsByNumber[$programHeaderRow])) {
+            $programStartIdx = $this->colToIndex($programHeaderCol);
+            $maxIdx = $this->colToIndex((string) $maxCol);
+
+            $groupStarts = [];
+            foreach ($rowsByNumber[$programHeaderRow] as $col => $val) {
+                $cell = strtoupper(trim((string) $val));
+                if ($cell === '') {
+                    continue;
+                }
+                if (str_contains($cell, 'PROGRAM') || $cell === 'MUAT' || $cell === 'BONGKAR' || $cell === 'PENDAPATAN') {
+                    $groupStarts[$this->colToIndex((string) $col)] = (string) $col;
+                }
+            }
+            ksort($groupStarts);
+            $groupStartIdxs = array_keys($groupStarts);
+
+            $programEndIdx = $maxIdx;
+            $pos = array_search($programStartIdx, $groupStartIdxs, true);
+            if ($pos !== false && isset($groupStartIdxs[$pos + 1])) {
+                $programEndIdx = $groupStartIdxs[$pos + 1] - 1;
+            }
+
+            $startSearchRow = $programHeaderRow;
+            $endSearchRow = min($programHeaderRow + 15, 120);
+            for ($r = $startSearchRow; $r <= $endSearchRow; $r++) {
+                if (!isset($rowsByNumber[$r])) {
+                    continue;
+                }
+
+                foreach ($rowsByNumber[$r] as $col => $val) {
+                    $cellStr = strtoupper(trim((string) $val));
+                    if ($cellStr !== 'KG') {
+                        continue;
+                    }
+
+                    $idx = $this->colToIndex((string) $col);
+                    if ($idx >= $programStartIdx && $idx <= $programEndIdx) {
+                        $kgCol = (string) $col;
+                        $dataStartRow = $r + 1;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if ($kgCol === null) {
+            for ($r = 1; $r <= 60; $r++) {
+                if (!isset($rowsByNumber[$r])) {
+                    continue;
+                }
+
+                foreach ($rowsByNumber[$r] as $col => $val) {
+                    $cellStr = strtoupper(trim((string) $val));
+                    if ($cellStr === 'KG') {
+                        $kgCol = $col;
+                        $dataStartRow = $r + 1;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if ($kgCol === null || $dataStartRow === null) {
+            return null;
+        }
+
+        $parsedRows = [];
+        for ($r = $dataStartRow; $r <= 500; $r++) {
+            if (!isset($rowsByNumber[$r])) {
+                continue;
+            }
+
+            $bulanRaw = trim((string) ($rowsByNumber[$r][$bulanCol] ?? ''));
+            if ($bulanRaw === '') {
+                continue;
+            }
+
+            if (strtoupper($bulanRaw) === 'TOTAL') {
+                break;
+            }
+
+            $bulanNum = $this->parseBulanToNumber($bulanRaw);
+            if ($bulanNum === null) {
+                continue;
+            }
+
+            $kgRaw = $rowsByNumber[$r][$kgCol] ?? null;
+            $kg = $this->parseNumberToInt($kgRaw);
+
+            $parsedRows[] = [
+                'tahun_program' => $tahunProgram,
+                'bulan' => $bulanNum,
+                'target_kg' => $kg,
+            ];
+        }
+
+        if (empty($parsedRows)) {
+            return null;
+        }
+
+        usort($parsedRows, fn ($a, $b) => ((int) $a['bulan']) <=> ((int) $b['bulan']));
+
+        return [
+            'tahun_program' => $tahunProgram,
+            'rows' => $parsedRows,
+        ];
+    }
+
+    private function parseBulanToNumber(string $bulanRaw): ?int
+    {
+        $bulanRaw = trim($bulanRaw);
+        if ($bulanRaw === '') {
+            return null;
+        }
+
+        if (is_numeric($bulanRaw)) {
+            $n = (int) $bulanRaw;
+            return ($n >= 1 && $n <= 12) ? $n : null;
+        }
+
+        $key = strtoupper($bulanRaw);
+        $map = [
+            'JANUARI' => 1,
+            'JAN' => 1,
+            'FEBRUARI' => 2,
+            'FEB' => 2,
+            'MARET' => 3,
+            'MAR' => 3,
+            'APRIL' => 4,
+            'APR' => 4,
+            'MEI' => 5,
+            'MAY' => 5,
+            'JUNI' => 6,
+            'JUN' => 6,
+            'JULI' => 7,
+            'JUL' => 7,
+            'AGUSTUS' => 8,
+            'AGU' => 8,
+            'AUG' => 8,
+            'SEPTEMBER' => 9,
+            'SEP' => 9,
+            'OKTOBER' => 10,
+            'OKT' => 10,
+            'OCT' => 10,
+            'NOVEMBER' => 11,
+            'NOV' => 11,
+            'DESEMBER' => 12,
+            'DES' => 12,
+            'DEC' => 12,
+        ];
+
+        return $map[$key] ?? null;
+    }
+
+    private function parseNumberToInt($value): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+
+        if (is_numeric($value)) {
+            return (int) round((float) $value);
+        }
+
+        $str = (string) $value;
+        $str = trim($str);
+        if ($str === '') {
+            return 0;
+        }
+
+        $digits = preg_replace('/[^0-9]/', '', $str);
+        if ($digits === null || $digits === '') {
+            return 0;
+        }
+
+        return (int) $digits;
     }
 
     public function statistik(Request $request)
@@ -586,7 +1357,7 @@ class DashboardController extends Controller
             $data = $this->processExcelFile($file, 'kedatangan');
             
             return redirect()->route('input.data')
-                ->with('success', "Berhasil upload {$data['count']} data kedatangan!")
+                ->with('success', "Upload kedatangan selesai. Data baru: {$data['inserted']}, duplikat dilewati: {$data['skipped']}.")
                 ->with('activeTab', 'kedatangan');
         } catch (\Exception $e) {
             return back()->with('error', 'Gagal memproses file: ' . $e->getMessage());
@@ -604,7 +1375,7 @@ class DashboardController extends Controller
             $data = $this->processExcelFile($file, 'muat');
             
             return redirect()->route('input.data')
-                ->with('success', "Berhasil upload {$data['count']} data muat!")
+                ->with('success', "Upload muat selesai. Data baru: {$data['inserted']}, duplikat dilewati: {$data['skipped']}.")
                 ->with('activeTab', 'muat');
         } catch (\Exception $e) {
             return back()->with('error', 'Gagal memproses file: ' . $e->getMessage());
@@ -662,11 +1433,33 @@ class DashboardController extends Controller
             if (empty($data)) {
                 throw new \Exception('File is empty or has invalid format');
             }
+
+            $tahunPrograms = [];
+            foreach ($data as $row) {
+                $rawDate = $this->findColumnValue($row, [
+                    'tanggal_keberangkatan_asal_ka',
+                    'tanggal keberangkatan asal ka',
+                    'tanggal',
+                    'tanggal keberangkatan',
+                    'date'
+                ]);
+                if ($rawDate === null || $rawDate === '') {
+                    continue;
+                }
+
+                $ymd = $this->parseDate($rawDate);
+                if (is_string($ymd) && strlen($ymd) >= 4) {
+                    $tahunPrograms[] = (int) substr($ymd, 0, 4);
+                }
+            }
+            $tahunPrograms = collect($tahunPrograms)->filter()->unique()->sort()->values()->all();
             
             // Return only first 10 rows for preview
             return [
                 'headers' => array_keys($data[0] ?? []),
-                'rows' => array_slice($data, 0, 10)
+                'rows' => array_slice($data, 0, 10),
+                'total_rows' => count($data),
+                'tahun_programs' => $tahunPrograms,
             ];
         } catch (\Throwable $e) {
             throw new \Exception('Failed to read file: ' . $e->getMessage());
@@ -981,7 +1774,8 @@ class DashboardController extends Controller
             $data = $this->readExcelFile($file);
         }
         
-        $processedCount = 0;
+        $inserted = 0;
+        $skipped = 0;
         
         foreach ($data as $row) {
             try {
@@ -1005,6 +1799,34 @@ class DashboardController extends Controller
                 if (empty($angkutanData['nama_customer']) || empty($angkutanData['stasiun_asal_sa']) || empty($angkutanData['nama_ka_stasiun_asal'])) {
                     continue; // Skip rows with missing required data
                 }
+
+                $dupQuery = Angkutan::query()
+                    ->where('jenis_angkutan', $jenisAngkutan)
+                    ->whereDate('tanggal_keberangkatan_asal_ka', $angkutanData['tanggal_keberangkatan_asal_ka'])
+                    ->where('nama_customer', $angkutanData['nama_customer'])
+                    ->where('stasiun_asal_sa', $angkutanData['stasiun_asal_sa'])
+                    ->where('nama_ka_stasiun_asal', $angkutanData['nama_ka_stasiun_asal']);
+
+                if (!empty($angkutanData['nomor_sarana'])) {
+                    $dupQuery->where('nomor_sarana', $angkutanData['nomor_sarana']);
+                } else {
+                    $dupQuery->where(function ($q) {
+                        $q->whereNull('nomor_sarana')->orWhere('nomor_sarana', '');
+                    });
+                }
+
+                if (!empty($angkutanData['stasiun_tujuan_sa'])) {
+                    $dupQuery->where('stasiun_tujuan_sa', $angkutanData['stasiun_tujuan_sa']);
+                } else {
+                    $dupQuery->where(function ($q) {
+                        $q->whereNull('stasiun_tujuan_sa')->orWhere('stasiun_tujuan_sa', '');
+                    });
+                }
+
+                if ($dupQuery->exists()) {
+                    $skipped++;
+                    continue;
+                }
                 
                 // Create customer if not exists
                 Customer::firstOrCreate([
@@ -1013,7 +1835,7 @@ class DashboardController extends Controller
                 
                 // Create angkutan record
                 Angkutan::create($angkutanData);
-                $processedCount++;
+                $inserted++;
                 
             } catch (\Throwable $e) {
                 // Skip invalid rows but continue processing
@@ -1022,7 +1844,7 @@ class DashboardController extends Controller
             }
         }
         
-        return ['count' => $processedCount];
+        return ['inserted' => $inserted, 'skipped' => $skipped];
     }
 
     private function findColumnValue($row, $possibleKeys)
