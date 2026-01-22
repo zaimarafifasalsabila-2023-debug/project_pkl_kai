@@ -17,6 +17,7 @@ class DashboardController extends Controller
         $now = now();
 
         $availableYears = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->where('jenis_angkutan', 'muat')
             ->selectRaw('DISTINCT YEAR(tanggal_keberangkatan_asal_ka) as tahun')
@@ -34,12 +35,14 @@ class DashboardController extends Controller
         // Base query untuk data MUAT saja (bukan kedatangan)
         // Catatan: jangan filter volume_berat_kai di base, karena akan mempengaruhi perhitungan lain (mis. total customer)
         $baseMuatQuery = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->where('jenis_angkutan', 'muat')
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereYear('tanggal_keberangkatan_asal_ka', $tahun);
 
         // Base query untuk semua data pada tahun tsb (MUAT + KEDATANGAN)
         $baseYearQuery = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereYear('tanggal_keberangkatan_asal_ka', $tahun);
 
@@ -94,7 +97,8 @@ class DashboardController extends Controller
         $tanggalAwal = $request->input('tanggal_awal');
         $tanggalAkhir = $request->input('tanggal_akhir');
 
-        $query = Angkutan::query();
+        $query = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD']);
 
         if (!empty($jenis)) {
             $query->where('jenis_angkutan', $jenis);
@@ -110,7 +114,10 @@ class DashboardController extends Controller
         }
 
         if ($request->filled('status_sa')) {
-            $query->where('status_sa', $request->string('status_sa')->toString());
+            $status = strtoupper(trim($request->string('status_sa')->toString()));
+            if (in_array($status, ['BAB', 'BKD'], true)) {
+                $query->where('status_sa', $status);
+            }
         }
 
         if ($request->filled('customer')) {
@@ -179,7 +186,8 @@ class DashboardController extends Controller
         $tanggalAwal = $request->input('tanggal_awal');
         $tanggalAkhir = $request->input('tanggal_akhir');
 
-        $query = Angkutan::query();
+        $query = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD']);
 
         if (!empty($jenis)) {
             $query->where('jenis_angkutan', $jenis);
@@ -195,7 +203,10 @@ class DashboardController extends Controller
         }
 
         if ($request->filled('status_sa')) {
-            $query->where('status_sa', $request->string('status_sa')->toString());
+            $status = strtoupper(trim($request->string('status_sa')->toString()));
+            if (in_array($status, ['BAB', 'BKD'], true)) {
+                $query->where('status_sa', $status);
+            }
         }
 
         if ($request->filled('customer')) {
@@ -254,6 +265,11 @@ class DashboardController extends Controller
             $query->where('jenis_angkutan', $request->string('jenis_angkutan')->toString());
         }
 
+        if ($request->filled('status_sa')) {
+            $status = trim($request->string('status_sa')->toString());
+            $query->where('status_sa', $status);
+        }
+
         // If print parameter is present, return all data as JSON
         if ($request->has('print')) {
             $allData = $query
@@ -270,7 +286,8 @@ class DashboardController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $customers = Customer::query()
+        $customers = Angkutan::query()
+            ->whereNotNull('nama_customer')
             ->select('nama_customer')
             ->distinct()
             ->orderBy('nama_customer')
@@ -290,7 +307,14 @@ class DashboardController extends Controller
             ->orderBy('stasiun_tujuan_sa')
             ->pluck('stasiun_tujuan_sa');
 
-        return view('dashboard.preview-data', compact('data', 'customers', 'stasiunAsalList', 'stasiunTujuanList'));
+        $statusList = Angkutan::query()
+            ->select('status_sa')
+            ->whereNotNull('status_sa')
+            ->distinct()
+            ->orderBy('status_sa')
+            ->pluck('status_sa');
+
+        return view('dashboard.preview-data', compact('data', 'customers', 'stasiunAsalList', 'stasiunTujuanList', 'statusList'));
     }
 
     public function previewTarget(Request $request)
@@ -306,6 +330,7 @@ class DashboardController extends Controller
             ->values();
 
         $yearsFromMuat = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->where('jenis_angkutan', 'muat')
             ->selectRaw('DISTINCT YEAR(tanggal_keberangkatan_asal_ka) as tahun')
@@ -374,6 +399,7 @@ class DashboardController extends Controller
         $muatMonthlyRows = Angkutan::query()
             ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
             ->where('jenis_angkutan', 'muat')
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->whereYear('tanggal_keberangkatan_asal_ka', $tahun)
@@ -383,6 +409,7 @@ class DashboardController extends Controller
         $muatMonthlyRowsNow = Angkutan::query()
             ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
             ->where('jenis_angkutan', 'muat')
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->whereYear('tanggal_keberangkatan_asal_ka', $chartYearNow)
@@ -392,6 +419,7 @@ class DashboardController extends Controller
         $muatMonthlyRowsPrev = Angkutan::query()
             ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
             ->where('jenis_angkutan', 'muat')
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->whereYear('tanggal_keberangkatan_asal_ka', $chartYearPrev)
@@ -1156,6 +1184,7 @@ class DashboardController extends Controller
         $buildMonthlyVolumeByStation = function (int $tahun, string $jenisAngkutan, string $field, string $stationCode) {
             $query = Angkutan::query()
                 ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
+                ->whereIn('status_sa', ['BAB', 'BKD'])
                 ->where('jenis_angkutan', $jenisAngkutan)
                 ->whereNotNull('tanggal_keberangkatan_asal_ka')
                 ->whereNotNull('volume_berat_kai')
@@ -1200,6 +1229,7 @@ class DashboardController extends Controller
         $mitraRows = Angkutan::query()
             ->select('nama_customer')
             ->selectRaw('SUM(volume_berat_kai) as total_volume')
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->whereYear('tanggal_keberangkatan_asal_ka', $mitraTahun)
@@ -1214,6 +1244,7 @@ class DashboardController extends Controller
         $mitraVolumes = $mitraRows->pluck('total_volume')->map(fn ($v) => (float) $v / 1000)->values()->all();
 
         $years = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->selectRaw('DISTINCT YEAR(tanggal_keberangkatan_asal_ka) as tahun')
             ->orderBy('tahun')
@@ -1232,6 +1263,7 @@ class DashboardController extends Controller
         $bulanLabelsChart = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
         
         $kedatanganMonthlyRows = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->where('jenis_angkutan', 'kedatangan')
@@ -1242,6 +1274,7 @@ class DashboardController extends Controller
             ->keyBy('bulan');
 
         $muatMonthlyRows = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->where('jenis_angkutan', 'muat')
@@ -1272,6 +1305,7 @@ class DashboardController extends Controller
         }
 
         $harianKedRows = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereBetween('tanggal_keberangkatan_asal_ka', [$start->toDateString(), $end->toDateString()])
             ->where('jenis_angkutan', 'kedatangan')
@@ -1282,6 +1316,7 @@ class DashboardController extends Controller
             ->keyBy('tgl');
 
         $harianMuatRows = Angkutan::query()
+            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereBetween('tanggal_keberangkatan_asal_ka', [$start->toDateString(), $end->toDateString()])
             ->where('jenis_angkutan', 'muat')
@@ -1303,6 +1338,7 @@ class DashboardController extends Controller
         if ($topCustomerJenis === 'keduanya') {
             // Combine both asal and tujuan stations
             $asalData = Angkutan::query()
+                ->whereIn('status_sa', ['BAB', 'BKD'])
                 ->whereNotNull('tanggal_keberangkatan_asal_ka')
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
@@ -1313,6 +1349,7 @@ class DashboardController extends Controller
                 ->get();
             
             $tujuanData = Angkutan::query()
+                ->whereIn('status_sa', ['BAB', 'BKD'])
                 ->whereNotNull('tanggal_keberangkatan_asal_ka')
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
@@ -1353,6 +1390,7 @@ class DashboardController extends Controller
             $groupByField = $topCustomerJenis === 'kedatangan' ? 'stasiun_asal_sa' : 'stasiun_tujuan_sa';
             
             $topCustomerQuery = Angkutan::query()
+                ->whereIn('status_sa', ['BAB', 'BKD'])
                 ->whereNotNull('tanggal_keberangkatan_asal_ka')
                 ->where('jenis_angkutan', $topCustomerJenis)
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
@@ -2105,6 +2143,11 @@ class DashboardController extends Controller
 
         if ($request->filled('jenis_angkutan')) {
             $query->where('jenis_angkutan', $request->string('jenis_angkutan')->toString());
+        }
+
+        if ($request->filled('status_sa')) {
+            $status = trim($request->string('status_sa')->toString());
+            $query->where('status_sa', $status);
         }
 
         $data = $query

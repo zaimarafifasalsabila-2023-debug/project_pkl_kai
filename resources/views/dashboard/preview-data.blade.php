@@ -19,24 +19,24 @@
 @endif
 
 <!-- Filter Section -->
-<div class="bg-white rounded-lg shadow-md p-6 mb-6">
-    <form method="GET" action="{{ route('preview.data') }}" class="flex flex-wrap items-end justify-between gap-4">
+<div class="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 reveal">
+    <form method="GET" action="{{ route('preview.data') }}" class="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-4">
         <h3 class="text-lg font-semibold text-gray-800">Filter Data</h3>
 
-        <div class="flex flex-wrap gap-3 items-end">
+        <div class="flex flex-col sm:flex-row sm:flex-wrap gap-3 items-end">
             <div>
                 <label class="block text-xs font-medium text-gray-500 mb-1">Nomor Sarana</label>
-                <input name="nomor_sarana" value="{{ request('nomor_sarana') }}" type="text" placeholder="Cari nomor sarana..." class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                <input name="nomor_sarana" value="{{ request('nomor_sarana') }}" type="text" placeholder="Cari nomor sarana..." class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
             </div>
 
             <div>
                 <label class="block text-xs font-medium text-gray-500 mb-1">Tanggal</label>
-                <input name="tanggal" value="{{ request('tanggal') }}" type="date" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                <input name="tanggal" value="{{ request('tanggal') }}" type="date" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
             </div>
 
             <div>
                 <label class="block text-xs font-medium text-gray-500 mb-1">Nama Customer</label>
-                <select name="nama_customer" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                <select name="nama_customer" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
                     <option value="">Semua Customer</option>
                     @foreach (($customers ?? collect()) as $customer)
                         <option value="{{ $customer }}" @selected(request('nama_customer') == $customer)>{{ $customer }}</option>
@@ -46,7 +46,7 @@
 
             <div>
                 <label class="block text-xs font-medium text-gray-500 mb-1">Stasiun Asal</label>
-                <select name="stasiun_asal_sa" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                <select name="stasiun_asal_sa" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
                     <option value="">Semua</option>
                     @foreach (($stasiunAsalList ?? collect()) as $st)
                         <option value="{{ $st }}" @selected(request('stasiun_asal_sa') == $st)>{{ $st }}</option>
@@ -56,7 +56,7 @@
 
             <div>
                 <label class="block text-xs font-medium text-gray-500 mb-1">Stasiun Tujuan</label>
-                <select name="stasiun_tujuan_sa" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                <select name="stasiun_tujuan_sa" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
                     <option value="">Semua</option>
                     @foreach (($stasiunTujuanList ?? collect()) as $st)
                         <option value="{{ $st }}" @selected(request('stasiun_tujuan_sa') == $st)>{{ $st }}</option>
@@ -66,19 +66,29 @@
 
             <div>
                 <label class="block text-xs font-medium text-gray-500 mb-1">Jenis Angkutan</label>
-                <select name="jenis_angkutan" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                <select name="jenis_angkutan" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
                     <option value="">Semua</option>
                     <option value="kedatangan" @selected(request('jenis_angkutan') == 'kedatangan')>Kedatangan</option>
                     <option value="muat" @selected(request('jenis_angkutan') == 'muat')>Muat</option>
                 </select>
             </div>
 
-            <button type="submit" class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                <select name="status_sa" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                    <option value="">Semua Status</option>
+                    @foreach (($statusList ?? collect()) as $st)
+                        <option value="{{ $st }}" @selected((string)request('status_sa') === (string)$st)>{{ $st }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <button type="submit" class="h-10 px-4 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200 whitespace-nowrap">
                 <i class="fas fa-search mr-2"></i>
                 Cari
             </button>
 
-            <a href="{{ route('preview.data') }}" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition duration-200">
+            <a href="{{ route('preview.data') }}" class="h-10 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition duration-200 flex items-center justify-center whitespace-nowrap">
                 Reset
             </a>
         </div>
@@ -156,11 +166,14 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $item->banyaknya_pengajuan }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            @if($item->status_sa == 'approved') bg-green-100 text-green-800
-                            @elseif($item->status_sa == 'pending') bg-yellow-100 text-yellow-800
-                            @elseif($item->status_sa == 'rejected') bg-red-100 text-red-800
+                            @php($statusSa = strtoupper((string)($item->status_sa ?? '')))
+                            @if($statusSa === 'BAB') bg-green-100 text-green-800
+                            @elseif($statusSa === 'BKD') bg-blue-100 text-blue-800
+                            @elseif($statusSa === 'SA') bg-yellow-100 text-yellow-800
+                            @elseif($statusSa === 'BATAL SA') bg-red-100 text-red-800
+                            @elseif($statusSa === 'DRAF') bg-gray-100 text-gray-800
                             @else bg-gray-100 text-gray-800 @endif">
-                            {{ ucfirst($item->status_sa ?? 'pending') }}
+                            {{ $item->status_sa ?? '-' }}
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">

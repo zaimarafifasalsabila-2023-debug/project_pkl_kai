@@ -84,6 +84,20 @@
             transform: translateY(0);
         }
 
+        .hover-lift {
+            transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
+            will-change: transform;
+            transform: translateZ(0);
+        }
+
+        .hover-lift:hover {
+            transform: translateY(-2px);
+        }
+
+        .hover-lift:active {
+            transform: translateY(-1px);
+        }
+
         @media (prefers-reduced-motion: reduce) {
             .page-enter {
                 opacity: 1;
@@ -95,6 +109,11 @@
                 opacity: 1;
                 transform: none;
                 transition: none;
+            }
+
+            .hover-lift {
+                transition: none;
+                transform: none;
             }
         }
 
@@ -151,25 +170,25 @@
             </div>
             
             <nav class="mt-6">
-                <a href="{{ route('dashboard') }}" class="flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('dashboard') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
-                    <i class="fas fa-home w-5 text-kai-orange"></i>
-                    <span class="sidebar-text ml-3">Dashboard</span>
+                <a href="{{ route('dashboard') }}" class="hover-lift flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('dashboard') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
+                    <i class="fas fa-home w-6 text-lg text-kai-orange"></i>
+                    <span class="sidebar-text ml-3 text-base">Dashboard</span>
                 </a>
-                <a href="{{ route('input.data') }}" class="flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('input.data') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
-                    <i class="fas fa-plus-circle w-5 text-kai-orange"></i>
-                    <span class="sidebar-text ml-3">Input Data</span>
+                <a href="{{ route('input.data') }}" class="hover-lift flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('input.data') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
+                    <i class="fas fa-plus-circle w-6 text-lg text-kai-orange"></i>
+                    <span class="sidebar-text ml-3 text-base">Input Data</span>
                 </a>
-                <a href="{{ route('preview.data') }}" class="flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('preview.data') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
-                    <i class="fas fa-eye w-5 text-kai-orange"></i>
-                    <span class="sidebar-text ml-3">Preview Data</span>
+                <a href="{{ route('preview.data') }}" class="hover-lift flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('preview.data') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
+                    <i class="fas fa-eye w-6 text-lg text-kai-orange"></i>
+                    <span class="sidebar-text ml-3 text-base">Preview Data</span>
                 </a>
-                <a href="{{ route('preview.target') }}" class="flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('preview.target') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
-                    <i class="fas fa-bullseye w-5 text-kai-orange"></i>
-                    <span class="sidebar-text ml-3">Capaian Target</span>
+                <a href="{{ route('preview.target') }}" class="hover-lift flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('preview.target') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
+                    <i class="fas fa-bullseye w-6 text-lg text-kai-orange"></i>
+                    <span class="sidebar-text ml-3 text-base">Capaian Target</span>
                 </a>
-                <a href="{{ route('statistik') }}" class="flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('statistik') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
-                    <i class="fas fa-chart-bar w-5 text-kai-orange"></i>
-                    <span class="sidebar-text ml-3">Statistik</span>
+                <a href="{{ route('statistik') }}" class="hover-lift flex items-center px-6 py-3 hover:bg-kai-navy-light transition duration-200 {{ request()->routeIs('statistik') ? 'bg-kai-navy-light border-l-4 border-kai-orange' : '' }}">
+                    <i class="fas fa-chart-bar w-6 text-lg text-kai-orange"></i>
+                    <span class="sidebar-text ml-3 text-base">Statistik</span>
                 </a>
             </nav>
             
@@ -250,6 +269,18 @@
                 applyState();
             });
 
+            const main = document.querySelector('main');
+            if (main) {
+                const candidates = main.querySelectorAll(
+                    '.bg-white.rounded-lg.shadow-md, .bg-white.shadow-md, .bg-white.rounded-lg.shadow-sm, .bg-white.shadow-sm'
+                );
+                candidates.forEach((el) => {
+                    if (!el.classList.contains('reveal')) {
+                        el.classList.add('reveal');
+                    }
+                });
+            }
+
             const revealEls = document.querySelectorAll('.reveal');
             if (revealEls && revealEls.length > 0 && 'IntersectionObserver' in window) {
                 const io = new IntersectionObserver((entries) => {
@@ -265,6 +296,15 @@
             } else {
                 revealEls.forEach((el) => el.classList.add('reveal-active'));
             }
+
+            const hoverCandidates = document.querySelectorAll(
+                'button, a, input[type="file"], select, input[type="text"], input[type="date"], input[type="number"]'
+            );
+            hoverCandidates.forEach((el) => {
+                if (el && el.classList && !el.classList.contains('hover-lift')) {
+                    el.classList.add('hover-lift');
+                }
+            });
 
             const toastContainer = document.getElementById('toastContainer');
             window.showToast = function (type, message) {
