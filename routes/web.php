@@ -37,6 +37,9 @@ Route::middleware('auth.session')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
+    Route::get('/dashboard/activities', [DashboardController::class, 'activities'])
+        ->name('dashboard.activities');
+
     Route::get('/dashboard/export/excel', [DashboardController::class, 'exportDashboardExcel'])
         ->name('dashboard.export.excel');
 
@@ -58,6 +61,18 @@ Route::middleware('auth.session')->group(function () {
 
     Route::get('/preview-data', [DashboardController::class, 'previewData'])
         ->name('preview.data');
+
+    Route::get('/preview-data/{id}', [DashboardController::class, 'previewDataShow'])
+        ->name('preview.data.show');
+
+    Route::put('/preview-data/{id}', [DashboardController::class, 'previewDataUpdate'])
+        ->name('preview.data.update');
+
+    Route::delete('/preview-data/{id}', [DashboardController::class, 'previewDataDestroy'])
+        ->name('preview.data.destroy');
+
+    Route::post('/preview-data/bulk-delete', [DashboardController::class, 'previewDataBulkDestroy'])
+        ->name('preview.data.bulk.destroy');
 
     Route::get('/preview-target', [DashboardController::class, 'previewTarget'])
         ->name('preview.target');

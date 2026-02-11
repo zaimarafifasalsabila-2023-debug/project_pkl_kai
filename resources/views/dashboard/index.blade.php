@@ -167,36 +167,82 @@
 <!-- Recent Activity -->
 <div class="mt-6 bg-white rounded-lg shadow-md p-6">
     <h3 class="text-lg font-semibold text-gray-800 mb-4">Aktivitas Terkini</h3>
-    <div class="space-y-3">
-        <div class="flex items-center p-3 bg-gray-50 rounded-lg">
-            <div class="w-8 h-8 bg-kai-orange rounded-full flex items-center justify-center mr-3">
-                <i class="fas fa-train text-white text-sm"></i>
-            </div>
-            <div class="flex-1">
-                <p class="text-sm font-medium text-gray-800">Data angkutan baru ditambahkan</p>
-                <p class="text-xs text-gray-500">2 jam yang lalu</p>
-            </div>
-        </div>
-        
-        <div class="flex items-center p-3 bg-gray-50 rounded-lg">
-            <div class="w-8 h-8 bg-kai-navy rounded-full flex items-center justify-center mr-3">
-                <i class="fas fa-user text-white text-sm"></i>
-            </div>
-            <div class="flex-1">
-                <p class="text-sm font-medium text-gray-800">Customer baru terdaftar</p>
-                <p class="text-xs text-gray-500">5 jam yang lalu</p>
-            </div>
-        </div>
-        
-        <div class="flex items-center p-3 bg-gray-50 rounded-lg">
-            <div class="w-8 h-8 bg-kai-orange rounded-full flex items-center justify-center mr-3">
-                <i class="fas fa-edit text-white text-sm"></i>
-            </div>
-            <div class="flex-1">
-                <p class="text-sm font-medium text-gray-800">Data angkutan diperbarui</p>
-                <p class="text-xs text-gray-500">1 hari yang lalu</p>
-            </div>
-        </div>
-    </div>
+    <div id="recentActivities" class="space-y-3"></div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const container = document.getElementById('recentActivities');
+    if (!container) return;
+
+    const endpoint = "{{ route('dashboard.activities') }}";
+    let lastTopId = null;
+
+    function pickIcon(action) {
+        const a = String(action || '').toLowerCase();
+        if (a.includes('upload_muat')) return { bg: 'bg-kai-navy', icon: 'fa-box' };
+        if (a.includes('upload_kedatangan')) return { bg: 'bg-kai-orange', icon: 'fa-train' };
+        if (a.includes('delete')) return { bg: 'bg-red-600', icon: 'fa-trash' };
+        if (a.includes('update') || a.includes('edit')) return { bg: 'bg-kai-orange', icon: 'fa-edit' };
+        return { bg: 'bg-kai-navy', icon: 'fa-clock' };
+    }
+
+    function render(items) {
+        if (!Array.isArray(items) || items.length === 0) {
+            container.innerHTML = `
+                <div class="p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+                    Belum ada aktivitas.
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = items.map((it) => {
+            const meta = pickIcon(it.action);
+            const user = it.user_name ? String(it.user_name) : 'Unknown';
+            const desc = it.description ? String(it.description) : '-';
+            const when = it.created_human ? String(it.created_human) : '';
+            return `
+                <div class="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <div class="w-8 h-8 ${meta.bg} rounded-full flex items-center justify-center mr-3">
+                        <i class="fas ${meta.icon} text-white text-sm"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-800">${desc}</p>
+                        <p class="text-xs text-gray-500">${when}${when ? ' • ' : ''}${user}</p>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async function fetchActivities() {
+        try {
+            const res = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+
+            if (!res.ok) return;
+
+            const json = await res.json();
+            const items = (json && json.data) ? json.data : [];
+            const topId = items && items.length ? items[0].id : null;
+
+            if (topId !== lastTopId) {
+                lastTopId = topId;
+                render(items);
+            }
+        } catch (e) {
+        }
+    }
+
+    fetchActivities();
+    setInterval(fetchActivities, 2000);
+});
+</script>
 @endsection

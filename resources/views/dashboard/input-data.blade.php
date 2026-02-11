@@ -18,6 +18,12 @@
         </div>
     @endif
 
+    @if(session('warning'))
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            <i class="fas fa-exclamation-circle mr-2"></i>{{ session('warning') }}
+        </div>
+    @endif
+
     <!-- Tab Navigation -->
     <div class="border-b border-gray-200 mb-6">
         <nav class="-mb-px flex flex-wrap gap-6">

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\Angkutan;
+use App\Models\ActivityLog;
 use App\Models\Customer;
 use App\Models\Station;
 use App\Models\TargetVolumeMuat;
@@ -17,7 +19,6 @@ class DashboardController extends Controller
         $now = now();
 
         $availableYears = Angkutan::query()
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->where('jenis_angkutan', 'muat')
             ->selectRaw('DISTINCT YEAR(tanggal_keberangkatan_asal_ka) as tahun')
@@ -35,14 +36,12 @@ class DashboardController extends Controller
         // Base query untuk data MUAT saja (bukan kedatangan)
         // Catatan: jangan filter volume_berat_kai di base, karena akan mempengaruhi perhitungan lain (mis. total customer)
         $baseMuatQuery = Angkutan::query()
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->where('jenis_angkutan', 'muat')
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereYear('tanggal_keberangkatan_asal_ka', $tahun);
 
         // Base query untuk semua data pada tahun tsb (MUAT + KEDATANGAN)
         $baseYearQuery = Angkutan::query()
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereYear('tanggal_keberangkatan_asal_ka', $tahun);
 
@@ -85,6 +84,36 @@ class DashboardController extends Controller
             'muatVolumeBBT',
             'muatVolumeBJ'
         ));
+    }
+
+    public function activities(Request $request)
+    {
+        $rows = ActivityLog::query()
+            ->with(['user:id,name,username'])
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get();
+
+        $data = $rows->map(function ($row) {
+            $user = $row->user;
+            $userName = null;
+            if ($user) {
+                $userName = $user->name ?: ($user->username ?? null);
+            }
+
+            return [
+                'id' => (int) $row->id,
+                'action' => (string) $row->action,
+                'description' => (string) $row->description,
+                'user_name' => $userName,
+                'created_at' => optional($row->created_at)->toIso8601String(),
+                'created_human' => optional($row->created_at)->diffForHumans(),
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => $data,
+        ]);
     }
 
     public function exportDashboardExcel(Request $request)
@@ -245,7 +274,15 @@ class DashboardController extends Controller
             $query->where('nomor_sarana', 'like', '%' . $request->string('nomor_sarana')->toString() . '%');
         }
 
-        if ($request->filled('tanggal')) {
+        if ($request->filled('tanggal_awal')) {
+            $query->whereDate('tanggal_keberangkatan_asal_ka', '>=', $request->string('tanggal_awal')->toString());
+        }
+
+        if ($request->filled('tanggal_akhir')) {
+            $query->whereDate('tanggal_keberangkatan_asal_ka', '<=', $request->string('tanggal_akhir')->toString());
+        }
+
+        if (!$request->filled('tanggal_awal') && !$request->filled('tanggal_akhir') && $request->filled('tanggal')) {
             $query->whereDate('tanggal_keberangkatan_asal_ka', $request->string('tanggal')->toString());
         }
 
@@ -275,9 +312,23 @@ class DashboardController extends Controller
             $allData = $query
                 ->orderBy('tanggal_keberangkatan_asal_ka', 'desc')
                 ->get();
-            
+
             return response()->json([
-                'data' => $allData
+                'data' => $allData->map(function ($r) {
+                    return [
+                        'id' => (int) $r->id,
+                        'jenis_angkutan' => $r->jenis_angkutan,
+                        'nama_customer' => $r->nama_customer,
+                        'stasiun_asal_sa' => $r->stasiun_asal_sa,
+                        'stasiun_tujuan_sa' => $r->stasiun_tujuan_sa,
+                        'nama_ka_stasiun_asal' => $r->nama_ka_stasiun_asal,
+                        'tanggal_keberangkatan_asal_ka' => optional($r->tanggal_keberangkatan_asal_ka)->format('Y-m-d'),
+                        'nomor_sarana' => $r->nomor_sarana,
+                        'volume_berat_kai' => $r->volume_berat_kai,
+                        'banyaknya_pengajuan' => $r->banyaknya_pengajuan,
+                        'status_sa' => $r->status_sa,
+                    ];
+                })->values(),
             ]);
         }
 
@@ -317,6 +368,102 @@ class DashboardController extends Controller
         return view('dashboard.preview-data', compact('data', 'customers', 'stasiunAsalList', 'stasiunTujuanList', 'statusList'));
     }
 
+    public function previewDataShow(Request $request, int $id)
+    {
+        $row = Angkutan::query()->findOrFail($id);
+
+        return response()->json([
+            'data' => [
+                'id' => (int) $row->id,
+                'jenis_angkutan' => $row->jenis_angkutan,
+                'nama_customer' => $row->nama_customer,
+                'stasiun_asal_sa' => $row->stasiun_asal_sa,
+                'stasiun_tujuan_sa' => $row->stasiun_tujuan_sa,
+                'nama_ka_stasiun_asal' => $row->nama_ka_stasiun_asal,
+                'tanggal_keberangkatan_asal_ka' => optional($row->tanggal_keberangkatan_asal_ka)->format('Y-m-d'),
+                'nomor_sarana' => $row->nomor_sarana,
+                'volume_berat_kai' => $row->volume_berat_kai,
+                'banyaknya_pengajuan' => $row->banyaknya_pengajuan,
+                'status_sa' => $row->status_sa,
+            ]
+        ]);
+    }
+
+    public function previewDataUpdate(Request $request, int $id)
+    {
+        $row = Angkutan::query()->findOrFail($id);
+
+        $payload = $request->validate([
+            'nama_customer' => 'nullable|string|max:255',
+            'stasiun_asal_sa' => 'nullable|string|max:255',
+            'stasiun_tujuan_sa' => 'nullable|string|max:255',
+            'nama_ka_stasiun_asal' => 'nullable|string|max:255',
+            'tanggal_keberangkatan_asal_ka' => 'nullable|date',
+            'nomor_sarana' => 'nullable|string|max:255',
+            'volume_berat_kai' => 'nullable|numeric',
+            'banyaknya_pengajuan' => 'nullable|integer',
+            'status_sa' => 'nullable|string|max:50',
+        ]);
+
+        $row->fill($payload);
+        $row->save();
+
+        ActivityLog::query()->create([
+            'user_id' => Auth::id(),
+            'action' => 'update_angkutan',
+            'description' => 'Update data angkutan ID ' . (string) $row->id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+        ]);
+    }
+
+    public function previewDataBulkDestroy(Request $request)
+    {
+        $payload = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer',
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $payload['ids'] ?? [])));
+        if (empty($ids)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada data yang dipilih',
+            ], 422);
+        }
+
+        $count = Angkutan::query()->whereIn('id', $ids)->delete();
+
+        ActivityLog::query()->create([
+            'user_id' => Auth::id(),
+            'action' => 'bulk_delete_angkutan',
+            'description' => 'Hapus massal data angkutan (' . (string) $count . ' baris)',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'deleted' => (int) $count,
+        ]);
+    }
+
+    public function previewDataDestroy(Request $request, int $id)
+    {
+        $row = Angkutan::query()->findOrFail($id);
+        $row->delete();
+
+        ActivityLog::query()->create([
+            'user_id' => Auth::id(),
+            'action' => 'delete_angkutan',
+            'description' => 'Hapus data angkutan ID ' . (string) $id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+        ]);
+    }
+
     public function previewTarget(Request $request)
     {
         $now = now();
@@ -330,7 +477,6 @@ class DashboardController extends Controller
             ->values();
 
         $yearsFromMuat = Angkutan::query()
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->where('jenis_angkutan', 'muat')
             ->selectRaw('DISTINCT YEAR(tanggal_keberangkatan_asal_ka) as tahun')
@@ -399,7 +545,6 @@ class DashboardController extends Controller
         $muatMonthlyRows = Angkutan::query()
             ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
             ->where('jenis_angkutan', 'muat')
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->whereYear('tanggal_keberangkatan_asal_ka', $tahun)
@@ -409,7 +554,6 @@ class DashboardController extends Controller
         $muatMonthlyRowsNow = Angkutan::query()
             ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
             ->where('jenis_angkutan', 'muat')
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->whereYear('tanggal_keberangkatan_asal_ka', $chartYearNow)
@@ -419,7 +563,6 @@ class DashboardController extends Controller
         $muatMonthlyRowsPrev = Angkutan::query()
             ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
             ->where('jenis_angkutan', 'muat')
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->whereYear('tanggal_keberangkatan_asal_ka', $chartYearPrev)
@@ -1165,6 +1308,7 @@ class DashboardController extends Controller
 
         $topCustomerJenis = (string) ($request->input('top_customer_jenis') ?? 'kedatangan');
         $topCustomerMode = (string) ($request->input('top_customer_mode') ?? 'volume');
+        $topCustomerSort = (string) ($request->input('top_customer_sort') ?? 'desc');
         $topCustomerTahun = (int) ($request->input('top_customer_tahun') ?? $now->year);
         $topCustomerBulan = (int) ($request->input('top_customer_bulan') ?? $now->month);
 
@@ -1175,8 +1319,11 @@ class DashboardController extends Controller
         if (!in_array($topCustomerJenis, ['kedatangan', 'muat', 'keduanya'], true)) {
             $topCustomerJenis = 'kedatangan';
         }
-        if (!in_array($topCustomerMode, ['volume', 'sa'], true)) {
+        if (!in_array($topCustomerMode, ['volume', 'koli'], true)) {
             $topCustomerMode = 'volume';
+        }
+        if (!in_array($topCustomerSort, ['asc', 'desc'], true)) {
+            $topCustomerSort = 'desc';
         }
 
         $bulanLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -1184,26 +1331,19 @@ class DashboardController extends Controller
         $buildMonthlyVolumeByStation = function (int $tahun, string $jenisAngkutan, string $field, string $stationCode) {
             $query = Angkutan::query()
                 ->selectRaw('MONTH(tanggal_keberangkatan_asal_ka) as bulan, SUM(volume_berat_kai) as total')
-                ->whereIn('status_sa', ['BAB', 'BKD'])
                 ->where('jenis_angkutan', $jenisAngkutan)
                 ->whereNotNull('tanggal_keberangkatan_asal_ka')
                 ->whereNotNull('volume_berat_kai')
                 ->whereYear('tanggal_keberangkatan_asal_ka', $tahun)
                 ->whereNotNull($field);
             
-            // Filter stasiun dengan lebih tepat
+            // Filter stasiun: samakan dengan query DB (LIKE saja)
             if ($stationCode === 'SBI') {
-                $query->whereRaw('UPPER(TRIM(' . $field . ')) LIKE ?', ['%SBI%'])
-                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%BBT%'])
-                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%BJ%']);
+                $query->whereRaw('UPPER(TRIM(' . $field . ')) LIKE ?', ['%SBI%']);
             } elseif ($stationCode === 'BBT') {
-                $query->whereRaw('UPPER(TRIM(' . $field . ')) LIKE ?', ['%BBT%'])
-                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%SBI%'])
-                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%BJ%']);
+                $query->whereRaw('UPPER(TRIM(' . $field . ')) LIKE ?', ['%BBT%']);
             } elseif ($stationCode === 'BJ') {
-                $query->whereRaw('UPPER(TRIM(' . $field . ')) LIKE ?', ['%BJ%'])
-                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%SBI%'])
-                      ->whereRaw('UPPER(TRIM(' . $field . ')) NOT LIKE ?', ['%BBT%']);
+                $query->whereRaw('UPPER(TRIM(' . $field . ')) LIKE ?', ['%BJ%']);
             }
             
             $rows = $query->groupBy('bulan')->get();
@@ -1229,7 +1369,7 @@ class DashboardController extends Controller
         $mitraRows = Angkutan::query()
             ->select('nama_customer')
             ->selectRaw('SUM(volume_berat_kai) as total_volume')
-            ->whereIn('status_sa', ['BAB', 'BKD'])
+            ->where('jenis_angkutan', 'muat')
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->whereYear('tanggal_keberangkatan_asal_ka', $mitraTahun)
@@ -1244,7 +1384,6 @@ class DashboardController extends Controller
         $mitraVolumes = $mitraRows->pluck('total_volume')->map(fn ($v) => (float) $v / 1000)->values()->all();
 
         $years = Angkutan::query()
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->selectRaw('DISTINCT YEAR(tanggal_keberangkatan_asal_ka) as tahun')
             ->orderBy('tahun')
@@ -1263,7 +1402,6 @@ class DashboardController extends Controller
         $bulanLabelsChart = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
         
         $kedatanganMonthlyRows = Angkutan::query()
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->where('jenis_angkutan', 'kedatangan')
@@ -1274,7 +1412,6 @@ class DashboardController extends Controller
             ->keyBy('bulan');
 
         $muatMonthlyRows = Angkutan::query()
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereNotNull('volume_berat_kai')
             ->where('jenis_angkutan', 'muat')
@@ -1305,7 +1442,6 @@ class DashboardController extends Controller
         }
 
         $harianKedRows = Angkutan::query()
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereBetween('tanggal_keberangkatan_asal_ka', [$start->toDateString(), $end->toDateString()])
             ->where('jenis_angkutan', 'kedatangan')
@@ -1316,7 +1452,6 @@ class DashboardController extends Controller
             ->keyBy('tgl');
 
         $harianMuatRows = Angkutan::query()
-            ->whereIn('status_sa', ['BAB', 'BKD'])
             ->whereNotNull('tanggal_keberangkatan_asal_ka')
             ->whereBetween('tanggal_keberangkatan_asal_ka', [$start->toDateString(), $end->toDateString()])
             ->where('jenis_angkutan', 'muat')
@@ -1334,77 +1469,94 @@ class DashboardController extends Controller
             $harianMuat[] = (int) (($harianMuatRows[$d]->total ?? 0) ?: 0);
         }
 
-        // Handle station distribution query
+        $topCustomerKedatanganValues = null;
+        $topCustomerMuatValues = null;
         if ($topCustomerJenis === 'keduanya') {
-            // Combine both asal and tujuan stations
-            $asalData = Angkutan::query()
-                ->whereIn('status_sa', ['BAB', 'BKD'])
+            $kedField = 'stasiun_tujuan_sa';
+            $muatField = 'stasiun_tujuan_sa';
+
+            $metricSelect = $topCustomerMode === 'koli'
+                ? 'SUM(banyaknya_pengajuan) as total_metric'
+                : 'SUM(volume_berat_kai) as total_metric';
+
+            $kedRows = Angkutan::query()
                 ->whereNotNull('tanggal_keberangkatan_asal_ka')
+                ->where('jenis_angkutan', 'kedatangan')
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
-                ->whereNotNull('stasiun_asal_sa')
-                ->select('stasiun_asal_sa as stasiun')
-                ->selectRaw('COUNT(*) as total_sa, SUM(volume_berat_kai) as total_volume')
-                ->groupBy('stasiun_asal_sa')
+                ->whereNotNull($kedField)
+                ->select($kedField . ' as stasiun')
+                ->selectRaw($metricSelect)
+                ->groupBy($kedField)
                 ->get();
-            
-            $tujuanData = Angkutan::query()
-                ->whereIn('status_sa', ['BAB', 'BKD'])
+
+            $muatRows = Angkutan::query()
                 ->whereNotNull('tanggal_keberangkatan_asal_ka')
+                ->where('jenis_angkutan', 'muat')
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
-                ->whereNotNull('stasiun_tujuan_sa')
-                ->select('stasiun_tujuan_sa as stasiun')
-                ->selectRaw('COUNT(*) as total_sa, SUM(volume_berat_kai) as total_volume')
-                ->groupBy('stasiun_tujuan_sa')
+                ->whereNotNull($muatField)
+                ->select($muatField . ' as stasiun')
+                ->selectRaw($metricSelect)
+                ->groupBy($muatField)
                 ->get();
-            
-            // Merge and aggregate by stasiun
+
             $merged = [];
-            foreach ($asalData as $row) {
-                $stasiun = $row->stasiun;
-                if (!isset($merged[$stasiun])) {
-                    $merged[$stasiun] = ['total_sa' => 0, 'total_volume' => 0];
+            foreach ($kedRows as $r) {
+                $st = (string) $r->stasiun;
+                if (!isset($merged[$st])) {
+                    $merged[$st] = ['kedatangan' => 0, 'muat' => 0];
                 }
-                $merged[$stasiun]['total_sa'] += $row->total_sa;
-                $merged[$stasiun]['total_volume'] += $row->total_volume;
+                $merged[$st]['kedatangan'] = (float) ($r->total_metric ?? 0);
             }
-            
-            foreach ($tujuanData as $row) {
-                $stasiun = $row->stasiun;
-                if (!isset($merged[$stasiun])) {
-                    $merged[$stasiun] = ['total_sa' => 0, 'total_volume' => 0];
+            foreach ($muatRows as $r) {
+                $st = (string) $r->stasiun;
+                if (!isset($merged[$st])) {
+                    $merged[$st] = ['kedatangan' => 0, 'muat' => 0];
                 }
-                $merged[$stasiun]['total_sa'] += $row->total_sa;
-                $merged[$stasiun]['total_volume'] += $row->total_volume;
+                $merged[$st]['muat'] = (float) ($r->total_metric ?? 0);
             }
-            
-            // Sort and limit to 15
-            uasort($merged, fn($a, $b) => $b['total_sa'] <=> $a['total_sa']);
+
+            uasort($merged, function ($a, $b) {
+                $ta = ((float) ($a['kedatangan'] ?? 0)) + ((float) ($a['muat'] ?? 0));
+                $tb = ((float) ($b['kedatangan'] ?? 0)) + ((float) ($b['muat'] ?? 0));
+                return $tb <=> $ta;
+            });
             $merged = array_slice($merged, 0, 15, true);
-            
+
             $topCustomerLabels = array_keys($merged);
-            $topCustomerValues = array_map(fn($v) => (int) $v['total_sa'], $merged);
+            if ($topCustomerMode === 'volume') {
+                $topCustomerKedatanganValues = array_values(array_map(fn ($v) => (float) (($v['kedatangan'] ?? 0) / 1000), $merged));
+                $topCustomerMuatValues = array_values(array_map(fn ($v) => (float) (($v['muat'] ?? 0) / 1000), $merged));
+            } else {
+                $topCustomerKedatanganValues = array_values(array_map(fn ($v) => (int) ($v['kedatangan'] ?? 0), $merged));
+                $topCustomerMuatValues = array_values(array_map(fn ($v) => (int) ($v['muat'] ?? 0), $merged));
+            }
+            $topCustomerValues = [];
         } else {
-            // Determine field based on jenis
-            $groupByField = $topCustomerJenis === 'kedatangan' ? 'stasiun_asal_sa' : 'stasiun_tujuan_sa';
-            
+            $groupByField = 'stasiun_tujuan_sa';
+
+            $orderField = $topCustomerMode === 'koli' ? 'total_koli' : 'total_volume';
+
             $topCustomerQuery = Angkutan::query()
-                ->whereIn('status_sa', ['BAB', 'BKD'])
                 ->whereNotNull('tanggal_keberangkatan_asal_ka')
                 ->where('jenis_angkutan', $topCustomerJenis)
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
                 ->whereNotNull($groupByField)
                 ->select($groupByField)
-                ->selectRaw('COUNT(*) as total_sa, SUM(volume_berat_kai) as total_volume')
+                ->selectRaw('SUM(volume_berat_kai) as total_volume, SUM(banyaknya_pengajuan) as total_koli')
                 ->groupBy($groupByField)
-                ->orderByDesc('total_sa')
+                ->orderByDesc($orderField)
                 ->limit(15)
                 ->get();
 
             $topCustomerLabels = $topCustomerQuery->pluck($groupByField)->values()->all();
-            $topCustomerValues = $topCustomerQuery->pluck('total_sa')->map(fn ($v) => (int) $v)->values()->all();
+            if ($topCustomerMode === 'volume') {
+                $topCustomerValues = $topCustomerQuery->pluck('total_volume')->map(fn ($v) => (float) (((float) $v) / 1000))->values()->all();
+            } else {
+                $topCustomerValues = $topCustomerQuery->pluck('total_koli')->map(fn ($v) => (int) $v)->values()->all();
+            }
         }
 
         return view('dashboard.statistik', compact(
@@ -1435,10 +1587,13 @@ class DashboardController extends Controller
             'harianMuat',
             'topCustomerJenis',
             'topCustomerMode',
+            'topCustomerSort',
             'topCustomerTahun',
             'topCustomerBulan',
             'topCustomerLabels',
-            'topCustomerValues'
+            'topCustomerValues',
+            'topCustomerKedatanganValues',
+            'topCustomerMuatValues'
         ));
     }
 
@@ -1451,12 +1606,28 @@ class DashboardController extends Controller
         try {
             $file = $request->file('file');
             $data = $this->processExcelFile($file, 'kedatangan');
-            
-            return redirect()->route('input.data')
-                ->with('success', "Upload bongkar selesai. Data baru: {$data['inserted']}, duplikat dilewati: {$data['skipped']}.")
+
+            ActivityLog::query()->create([
+                'user_id' => Auth::id(),
+                'action' => 'upload_kedatangan',
+                'description' => "Upload bongkar: data tersimpan {$data['inserted']}, duplikat {$data['skipped']}",
+            ]);
+
+            $redirect = redirect()->route('input.data')
+                ->with('success', "Upload bongkar selesai. Data tersimpan: {$data['inserted']} baris.")
                 ->with('activeTab', 'bongkar');
+
+            if (($data['skipped'] ?? 0) > 0) {
+                $redirect = $redirect->with('warning', "Data duplikat tidak disimpan karena sudah ada di sistem: {$data['skipped']} baris.");
+            }
+
+            return $redirect;
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal memproses file: ' . $e->getMessage());
+            $msg = $e->getMessage();
+            $tab = str_contains(strtolower($msg), 'menu muat') ? 'muat' : 'bongkar';
+            return redirect()->route('input.data')
+                ->with('error', $msg)
+                ->with('activeTab', $tab);
         }
     }
 
@@ -1469,12 +1640,28 @@ class DashboardController extends Controller
         try {
             $file = $request->file('file');
             $data = $this->processExcelFile($file, 'muat');
-            
-            return redirect()->route('input.data')
-                ->with('success', "Upload muat selesai. Data baru: {$data['inserted']}, duplikat dilewati: {$data['skipped']}.")
+
+            ActivityLog::query()->create([
+                'user_id' => Auth::id(),
+                'action' => 'upload_muat',
+                'description' => "Upload muat: data tersimpan {$data['inserted']}, duplikat {$data['skipped']}",
+            ]);
+
+            $redirect = redirect()->route('input.data')
+                ->with('success', "Upload muat selesai. Data tersimpan: {$data['inserted']} baris.")
                 ->with('activeTab', 'muat');
+
+            if (($data['skipped'] ?? 0) > 0) {
+                $redirect = $redirect->with('warning', "Data duplikat tidak disimpan karena sudah ada di sistem: {$data['skipped']} baris.");
+            }
+
+            return $redirect;
         } catch (\Exception $e) {
-            return back()->with('error', 'Gagal memproses file: ' . $e->getMessage());
+            $msg = $e->getMessage();
+            $tab = str_contains(strtolower($msg), 'menu bongkar') ? 'bongkar' : 'muat';
+            return redirect()->route('input.data')
+                ->with('error', $msg)
+                ->with('activeTab', $tab);
         }
     }
 
@@ -1926,6 +2113,9 @@ class DashboardController extends Controller
         $skipped = 0;
         $seenKeys = [];
 
+        $stationField = $jenisAngkutan === 'muat' ? 'stasiun_asal_sa' : 'stasiun_tujuan_sa';
+        $fileStation = null;
+
         $candidateRows = [];
         
         foreach ($data as $row) {
@@ -1942,13 +2132,22 @@ class DashboardController extends Controller
                     'volume_berat_kai' => $this->parseDecimal($this->findColumnValue($row, ['volume_berat_kai', 'volume berat kai', 'volume', 'berat', 'weight'])),
                     'banyaknya_pengajuan' => $this->parseInt($this->findColumnValue($row, ['banyaknya_pengajuan', 'banyaknya pengajuan', 'pengajuan', 'jumlah'])),
                     'status_sa' => $this->findColumnValue($row, ['status_sa', 'status sa', 'status']),
+                    'nomor_sa' => $this->findColumnValue($row, ['nomor_sa', 'nomor sa', 'no sa']),
+                    'tanggal_pembuatan_sa' => $this->parseDate($this->findColumnValue($row, ['tanggal_pembuatan_sa', 'tanggal pembuatan sa', 'tgl pembuatan sa'])),
+                    'tanggal_sa' => $this->parseDate($this->findColumnValue($row, ['tanggal_sa', 'tanggal sa', 'tgl sa'])),
+                    'jenis_hari_operasi' => $this->findColumnValue($row, ['jenis_hari_operasi', 'jenis hari operasi', 'hari operasi']),
+                    'nomor_manifest' => $this->findColumnValue($row, ['nomor_manifest', 'nomor manifest', 'no manifest']),
+                    'komoditi' => $this->findColumnValue($row, ['komoditi', 'komoditas']),
                     'created_at' => now(),
                     'updated_at' => now()
                 ];
                 
-                // Validate required fields
-                if (empty($angkutanData['nama_customer']) || empty($angkutanData['stasiun_asal_sa']) || empty($angkutanData['nama_ka_stasiun_asal'])) {
-                    continue; // Skip rows with missing required data
+                $asal = $angkutanData['stasiun_asal_sa'] ?? null;
+                $tujuan = $angkutanData['stasiun_tujuan_sa'] ?? null;
+                $hasAsal = is_string($asal) ? (trim($asal) !== '') : !empty($asal);
+                $hasTujuan = is_string($tujuan) ? (trim($tujuan) !== '') : !empty($tujuan);
+                if (empty($angkutanData['nama_customer']) || empty($angkutanData['nama_ka_stasiun_asal']) || empty($angkutanData['tanggal_keberangkatan_asal_ka']) || (!$hasAsal && !$hasTujuan)) {
+                    continue;
                 }
 
                 $dedupHash = $this->buildAngkutanDedupHash($jenisAngkutan, $angkutanData);
@@ -1972,6 +2171,103 @@ class DashboardController extends Controller
             return ['inserted' => $inserted, 'skipped' => $skipped];
         }
 
+        $asalSet = [];
+        $tujuanSet = [];
+        $asalEmpty = 0;
+        $tujuanEmpty = 0;
+        foreach ($candidateRows as $r) {
+            $asal = strtoupper(trim((string) ($r['stasiun_asal_sa'] ?? '')));
+            $tujuan = strtoupper(trim((string) ($r['stasiun_tujuan_sa'] ?? '')));
+            if ($asal === '') {
+                $asalEmpty++;
+            } else {
+                $asalSet[$asal] = true;
+            }
+            if ($tujuan === '') {
+                $tujuanEmpty++;
+            } else {
+                $tujuanSet[$tujuan] = true;
+            }
+        }
+
+        $uniqueAsal = count($asalSet);
+        $uniqueTujuan = count($tujuanSet);
+        if ($jenisAngkutan === 'muat') {
+            if ($uniqueAsal === 0 && $uniqueTujuan > 0) {
+                throw new \Exception('File ini terdeteksi sebagai data bongkar. Untuk data bongkar, stasiun patokan adalah Stasiun Tujuan SA. Silakan upload melalui menu Bongkar.');
+            }
+            if ($uniqueAsal > 1 && $uniqueTujuan === 1) {
+                throw new \Exception('File ini terdeteksi sebagai data bongkar. Untuk data bongkar, stasiun patokan adalah Stasiun Tujuan SA. Silakan upload melalui menu Bongkar.');
+            }
+
+            if ($uniqueAsal === 0) {
+                throw new \Exception('Data muat wajib memiliki Stasiun Asal SA. Silakan lengkapi kolom Stasiun Asal SA atau upload melalui menu yang sesuai.');
+            }
+
+            if ($uniqueAsal > 1) {
+                throw new \Exception('Untuk data muat, Stasiun Asal SA harus sama untuk semua baris dalam 1 file. Silakan periksa kembali file yang diupload.');
+            }
+
+            $fileStation = array_key_first($asalSet);
+        }
+        if ($jenisAngkutan === 'kedatangan') {
+            if ($uniqueTujuan === 0 && $uniqueAsal > 0) {
+                throw new \Exception('File ini terdeteksi sebagai data muat. Untuk data muat, stasiun patokan adalah Stasiun Asal SA. Silakan upload melalui menu Muat.');
+            }
+            if ($uniqueTujuan > 1 && $uniqueAsal === 1) {
+                throw new \Exception('File ini terdeteksi sebagai data muat. Untuk data muat, stasiun patokan adalah Stasiun Asal SA. Silakan upload melalui menu Muat.');
+            }
+
+            if ($uniqueTujuan === 0) {
+                throw new \Exception('Data bongkar wajib memiliki Stasiun Tujuan SA. Silakan lengkapi kolom Stasiun Tujuan SA atau upload melalui menu yang sesuai.');
+            }
+
+            if ($uniqueTujuan > 1) {
+                throw new \Exception('Untuk data bongkar, Stasiun Tujuan SA harus sama untuk semua baris dalam 1 file. Silakan periksa kembali file yang diupload.');
+            }
+
+            $fileStation = array_key_first($tujuanSet);
+        }
+
+        $monthsByYear = [];
+        foreach ($candidateRows as $r) {
+            $d = (string) ($r['tanggal_keberangkatan_asal_ka'] ?? '');
+            if (strlen($d) < 7) {
+                continue;
+            }
+            $y = (int) substr($d, 0, 4);
+            $m = (int) substr($d, 5, 2);
+            if (!isset($monthsByYear[$y])) {
+                $monthsByYear[$y] = [];
+            }
+            $monthsByYear[$y][$m] = true;
+        }
+
+        $yearlyBlockMonths = [];
+        if ($fileStation !== null) {
+            foreach ($monthsByYear as $y => $monthSet) {
+                if (count($monthSet) <= 1) {
+                    continue;
+                }
+
+                $existingMonths = Angkutan::query()
+                    ->where('jenis_angkutan', $jenisAngkutan)
+                    ->where($stationField, $fileStation)
+                    ->whereNotNull('tanggal_keberangkatan_asal_ka')
+                    ->whereYear('tanggal_keberangkatan_asal_ka', (int) $y)
+                    ->selectRaw('DISTINCT MONTH(tanggal_keberangkatan_asal_ka) as m')
+                    ->pluck('m')
+                    ->map(fn ($v) => (int) $v)
+                    ->all();
+
+                $existingSet = [];
+                foreach ($existingMonths as $m) {
+                    $existingSet[(int) $m] = true;
+                }
+                $yearlyBlockMonths[(int) $y] = $existingSet;
+            }
+        }
+
         $hashExpr = $this->getAngkutanDedupHashSqlExpression();
         $chunkSize = 400;
         foreach (array_chunk($candidateRows, $chunkSize) as $chunk) {
@@ -1983,6 +2279,17 @@ class DashboardController extends Controller
                 ->selectRaw($hashExpr . ' as dedup_hash')
                 ->pluck('dedup_hash')
                 ->all();
+
+            $trashedRows = Angkutan::onlyTrashed()
+                ->where('jenis_angkutan', $jenisAngkutan)
+                ->whereIn(DB::raw($hashExpr), $hashes)
+                ->selectRaw('id, ' . $hashExpr . ' as dedup_hash')
+                ->get();
+
+            $trashedMap = [];
+            foreach ($trashedRows as $tr) {
+                $trashedMap[(string) $tr->dedup_hash] = (int) $tr->id;
+            }
 
             $existingSet = [];
             foreach ($existingHashes as $h) {
@@ -1996,6 +2303,27 @@ class DashboardController extends Controller
                 if (isset($existingSet[$h])) {
                     $skipped++;
                     continue;
+                }
+
+                if (isset($trashedMap[$h])) {
+                    Angkutan::withTrashed()
+                        ->where('id', $trashedMap[$h])
+                        ->update([
+                            'deleted_at' => null,
+                            'updated_at' => now(),
+                        ]);
+                    $inserted++;
+                    continue;
+                }
+
+                $d = (string) ($row['tanggal_keberangkatan_asal_ka'] ?? '');
+                if (strlen($d) >= 7) {
+                    $y = (int) substr($d, 0, 4);
+                    $m = (int) substr($d, 5, 2);
+                    if (isset($yearlyBlockMonths[$y]) && isset($yearlyBlockMonths[$y][$m])) {
+                        $skipped++;
+                        continue;
+                    }
                 }
 
                 unset($row['_dedup_hash']);
@@ -2047,14 +2375,28 @@ class DashboardController extends Controller
 
     private function buildAngkutanDedupHash(string $jenisAngkutan, array $angkutanData): string
     {
+        $volume = $angkutanData['volume_berat_kai'] ?? 0;
+        $volume = is_numeric($volume) ? number_format((float) $volume, 2, '.', '') : '0.00';
+        $koli = $angkutanData['banyaknya_pengajuan'] ?? 0;
+        $koli = is_numeric($koli) ? (string) ((int) $koli) : '0';
+
         $parts = [
             strtolower(trim((string) $jenisAngkutan)),
             (string) ($angkutanData['tanggal_keberangkatan_asal_ka'] ?? ''),
             strtolower(trim((string) ($angkutanData['nama_customer'] ?? ''))),
             strtolower(trim((string) ($angkutanData['stasiun_asal_sa'] ?? ''))),
+            strtolower(trim((string) ($angkutanData['stasiun_tujuan_sa'] ?? ''))),
             strtolower(trim((string) ($angkutanData['nama_ka_stasiun_asal'] ?? ''))),
             strtolower(trim((string) ($angkutanData['nomor_sarana'] ?? ''))),
-            strtolower(trim((string) ($angkutanData['stasiun_tujuan_sa'] ?? ''))),
+            strtolower(trim((string) ($angkutanData['status_sa'] ?? ''))),
+            $volume,
+            $koli,
+            strtolower(trim((string) ($angkutanData['nomor_sa'] ?? ''))),
+            (string) ($angkutanData['tanggal_pembuatan_sa'] ?? ''),
+            (string) ($angkutanData['tanggal_sa'] ?? ''),
+            strtolower(trim((string) ($angkutanData['jenis_hari_operasi'] ?? ''))),
+            strtolower(trim((string) ($angkutanData['nomor_manifest'] ?? ''))),
+            strtolower(trim((string) ($angkutanData['komoditi'] ?? ''))),
         ];
 
         return md5(implode('|', $parts));
@@ -2062,7 +2404,24 @@ class DashboardController extends Controller
 
     private function getAngkutanDedupHashSqlExpression(): string
     {
-        return "MD5(CONCAT_WS('|', jenis_angkutan, DATE(tanggal_keberangkatan_asal_ka), LOWER(TRIM(nama_customer)), LOWER(TRIM(stasiun_asal_sa)), LOWER(TRIM(nama_ka_stasiun_asal)), LOWER(TRIM(COALESCE(nomor_sarana,''))), LOWER(TRIM(COALESCE(stasiun_tujuan_sa,'')))))";
+        return "MD5(CONCAT(" .
+            "LOWER(TRIM(COALESCE(jenis_angkutan,''))), '|'," .
+            "COALESCE(DATE(tanggal_keberangkatan_asal_ka),''), '|'," .
+            "LOWER(TRIM(COALESCE(nama_customer,''))), '|'," .
+            "LOWER(TRIM(COALESCE(stasiun_asal_sa,''))), '|'," .
+            "LOWER(TRIM(COALESCE(stasiun_tujuan_sa,''))), '|'," .
+            "LOWER(TRIM(COALESCE(nama_ka_stasiun_asal,''))), '|'," .
+            "LOWER(TRIM(COALESCE(nomor_sarana,''))), '|'," .
+            "LOWER(TRIM(COALESCE(status_sa,''))), '|'," .
+            "REPLACE(FORMAT(COALESCE(volume_berat_kai,0),2),',',''), '|'," .
+            "COALESCE(banyaknya_pengajuan,0), '|'," .
+            "LOWER(TRIM(COALESCE(nomor_sa,''))), '|'," .
+            "COALESCE(DATE(tanggal_pembuatan_sa),''), '|'," .
+            "COALESCE(DATE(tanggal_sa),''), '|'," .
+            "LOWER(TRIM(COALESCE(jenis_hari_operasi,''))), '|'," .
+            "LOWER(TRIM(COALESCE(nomor_manifest,''))), '|'," .
+            "LOWER(TRIM(COALESCE(komoditi,'')))" .
+        "))";
     }
 
     private function findColumnValue($row, $possibleKeys)
@@ -2085,6 +2444,14 @@ class DashboardController extends Controller
 
     private function parseDate($date)
     {
+        if ($date === null) {
+            return null;
+        }
+
+        if (is_string($date) && trim($date) === '') {
+            return null;
+        }
+
         if (is_numeric($date)) {
             // Excel date format
             try {
@@ -2092,29 +2459,61 @@ class DashboardController extends Controller
                 // Excel serial date: days since 1899-12-30
                 $timestamp = (int) round(($serial - 25569) * 86400);
                 if ($timestamp <= 0) {
-                    return date('Y-m-d');
+                    return null;
                 }
                 return gmdate('Y-m-d', $timestamp);
             } catch (\Exception $e) {
-                return date('Y-m-d');
+                return null;
             }
         }
         
         try {
             return \Carbon\Carbon::parse($date)->format('Y-m-d');
         } catch (\Exception $e) {
-            return date('Y-m-d');
+            return null;
         }
     }
 
     private function parseDecimal($value)
     {
-        return is_numeric($value) ? (float) $value : 0.00;
+        if ($value === null) {
+            return 0.00;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        $str = trim((string) $value);
+        if ($str === '') {
+            return 0.00;
+        }
+
+        $str = str_replace([' ', ','], ['', ''], $str);
+        return is_numeric($str) ? (float) $str : 0.00;
     }
 
     private function parseInt($value)
     {
-        return is_numeric($value) ? (int) $value : 0;
+        if ($value === null) {
+            return 0;
+        }
+
+        if (is_numeric($value)) {
+            return (int) round((float) $value);
+        }
+
+        $str = trim((string) $value);
+        if ($str === '') {
+            return 0;
+        }
+
+        $digits = preg_replace('/[^0-9]/', '', $str);
+        if ($digits === null || $digits === '') {
+            return 0;
+        }
+
+        return (int) $digits;
     }
 
     public function exportPreviewDataExcel(Request $request)
@@ -2125,7 +2524,15 @@ class DashboardController extends Controller
             $query->where('nomor_sarana', 'like', '%' . $request->string('nomor_sarana')->toString() . '%');
         }
 
-        if ($request->filled('tanggal')) {
+        if ($request->filled('tanggal_awal')) {
+            $query->whereDate('tanggal_keberangkatan_asal_ka', '>=', $request->string('tanggal_awal')->toString());
+        }
+
+        if ($request->filled('tanggal_akhir')) {
+            $query->whereDate('tanggal_keberangkatan_asal_ka', '<=', $request->string('tanggal_akhir')->toString());
+        }
+
+        if (!$request->filled('tanggal_awal') && !$request->filled('tanggal_akhir') && $request->filled('tanggal')) {
             $query->whereDate('tanggal_keberangkatan_asal_ka', $request->string('tanggal')->toString());
         }
 
@@ -2219,6 +2626,7 @@ class DashboardController extends Controller
 <Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
 <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
 </Types>');
             
             // Add relationships
@@ -2226,6 +2634,7 @@ class DashboardController extends Controller
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
 </Relationships>');
             
             // Add workbook relationships
@@ -2289,7 +2698,7 @@ class DashboardController extends Controller
             $xml .= '<row r="1">';
             foreach ($headers as $col => $header) {
                 $cellRef = chr(65 + $col) . '1';
-                $xml .= '<c r="' . $cellRef . '" s="1" t="str"><v>' . htmlspecialchars($header) . '</v></c>';
+                $xml .= '<c r="' . $cellRef . '" s="1" t="inlineStr"><is><t>' . htmlspecialchars($header) . '</t></is></c>';
             }
             $xml .= '</row>';
             
@@ -2297,16 +2706,16 @@ class DashboardController extends Controller
             $rowNum = 2;
             foreach ($data as $item) {
                 $xml .= '<row r="' . $rowNum . '">';
-                $xml .= '<c r="A' . $rowNum . '" t="str"><v>' . htmlspecialchars(ucfirst($item->jenis_angkutan)) . '</v></c>';
-                $xml .= '<c r="B' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->nama_customer) . '</v></c>';
-                $xml .= '<c r="C' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->stasiun_asal_sa) . '</v></c>';
-                $xml .= '<c r="D' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->stasiun_tujuan_sa ?? '-') . '</v></c>';
-                $xml .= '<c r="E' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->nama_ka_stasiun_asal) . '</v></c>';
-                $xml .= '<c r="F' . $rowNum . '" t="str"><v>' . htmlspecialchars(optional($item->tanggal_keberangkatan_asal_ka)->format('Y-m-d') ?? '-') . '</v></c>';
-                $xml .= '<c r="G' . $rowNum . '" t="str"><v>' . htmlspecialchars($item->nomor_sarana ?? '-') . '</v></c>';
+                $xml .= '<c r="A' . $rowNum . '" t="inlineStr"><is><t>' . htmlspecialchars(ucfirst($item->jenis_angkutan)) . '</t></is></c>';
+                $xml .= '<c r="B' . $rowNum . '" t="inlineStr"><is><t>' . htmlspecialchars((string) ($item->nama_customer ?? '')) . '</t></is></c>';
+                $xml .= '<c r="C' . $rowNum . '" t="inlineStr"><is><t>' . htmlspecialchars((string) ($item->stasiun_asal_sa ?? '')) . '</t></is></c>';
+                $xml .= '<c r="D' . $rowNum . '" t="inlineStr"><is><t>' . htmlspecialchars((string) ($item->stasiun_tujuan_sa ?? '-')) . '</t></is></c>';
+                $xml .= '<c r="E' . $rowNum . '" t="inlineStr"><is><t>' . htmlspecialchars((string) ($item->nama_ka_stasiun_asal ?? '')) . '</t></is></c>';
+                $xml .= '<c r="F' . $rowNum . '" t="inlineStr"><is><t>' . htmlspecialchars(optional($item->tanggal_keberangkatan_asal_ka)->format('Y-m-d') ?? '-') . '</t></is></c>';
+                $xml .= '<c r="G' . $rowNum . '" t="inlineStr"><is><t>' . htmlspecialchars((string) ($item->nomor_sarana ?? '-')) . '</t></is></c>';
                 $xml .= '<c r="H' . $rowNum . '" t="n"><v>' . $item->volume_berat_kai . '</v></c>';
                 $xml .= '<c r="I' . $rowNum . '" t="n"><v>' . $item->banyaknya_pengajuan . '</v></c>';
-                $xml .= '<c r="J' . $rowNum . '" t="str"><v>' . htmlspecialchars(ucfirst($item->status_sa ?? 'pending')) . '</v></c>';
+                $xml .= '<c r="J' . $rowNum . '" t="inlineStr"><is><t>' . htmlspecialchars(ucfirst($item->status_sa ?? 'pending')) . '</t></is></c>';
                 $xml .= '</row>';
                 $rowNum++;
             }
@@ -2323,13 +2732,18 @@ class DashboardController extends Controller
             
             // Add core properties
             $zip->addFromString('docProps/core.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <dc:title>Data Angkutan</dc:title>
 <dc:creator>KAI</dc:creator>
 <cp:lastModifiedBy>KAI</cp:lastModifiedBy>
 <dcterms:created xsi:type="dcterms:W3CDTF">' . now()->toIso8601String() . '</dcterms:created>
 <dcterms:modified xsi:type="dcterms:W3CDTF">' . now()->toIso8601String() . '</dcterms:modified>
 </cp:coreProperties>');
+
+            $zip->addFromString('docProps/app.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+<Application>Laravel</Application>
+</Properties>');
             
             $zip->close();
             

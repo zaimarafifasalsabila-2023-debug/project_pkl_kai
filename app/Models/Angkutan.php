@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Angkutan extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'angkutan';
 
     protected $fillable = [
@@ -18,11 +21,19 @@ class Angkutan extends Model
         'nomor_sarana',
         'volume_berat_kai',
         'banyaknya_pengajuan',
-        'status_sa'
+        'status_sa',
+        'nomor_sa',
+        'tanggal_pembuatan_sa',
+        'tanggal_sa',
+        'jenis_hari_operasi',
+        'nomor_manifest',
+        'komoditi'
     ];
 
     protected $casts = [
         'tanggal_keberangkatan_asal_ka' => 'date',
+        'tanggal_pembuatan_sa' => 'date',
+        'tanggal_sa' => 'date',
         'volume_berat_kai' => 'decimal:2'
     ];
 

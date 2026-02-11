@@ -232,7 +232,14 @@
             <input type="hidden" name="mitra_tahun" value="{{ request('mitra_tahun', $mitraTahun ?? now()->year) }}">
             <input type="hidden" name="sa_bulan" value="{{ request('sa_bulan', $saBulan ?? now()->month) }}">
             <input type="hidden" name="sa_tahun" value="{{ request('sa_tahun', $saTahun ?? now()->year) }}">
-            <input type="hidden" name="top_customer_mode" value="sa">
+
+            <div class="min-w-[160px]">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Basis</label>
+                <select name="top_customer_mode" class="w-full sm:w-40 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                    <option value="volume" @selected(request('top_customer_mode', $topCustomerMode ?? 'volume') === 'volume')>Volume (ton)</option>
+                    <option value="koli" @selected(request('top_customer_mode', $topCustomerMode ?? 'volume') === 'koli')>Koli</option>
+                </select>
+            </div>
 
             <div class="min-w-[160px]">
                 <label class="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
@@ -361,17 +368,36 @@ document.addEventListener('DOMContentLoaded', function () {
             data: {
                 labels,
                 datasets: [
-                    { label: 'SBI', data: @json($muatSBI), backgroundColor: kaiNavy },
-                    { label: 'BBT', data: @json($muatBBT), backgroundColor: kaiOrange },
-                    { label: 'BJ', data: @json($muatBJ), backgroundColor: kaiOrangeLight }
+                    { label: 'SBI', data: @json($muatSBI), backgroundColor: kaiNavy, minBarLength: 3 },
+                    { label: 'BBT', data: @json($muatBBT), backgroundColor: kaiOrange, minBarLength: 3 },
+                    { label: 'BJ', data: @json($muatBJ), backgroundColor: kaiOrangeLight, minBarLength: 3 }
                 ]
             },
             options: {
-                ...commonOptions,
-                datasets: {
-                    bar: {
-                        barPercentage: 0.9,
-                        categoryPercentage: 0.7
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 2.2,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 14,
+                            boxHeight: 14
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                const v = Number(ctx.raw || 0);
+                                return ctx.dataset.label + ': ' + v.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ton';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Ton' }
                     }
                 }
             }
@@ -388,6 +414,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     label: 'Total Volume (ton)',
                     data: @json($mitraVolumes),
                     backgroundColor: kaiOrange,
+                    minBarLength: 3,
                 }]
             },
             options: {
@@ -482,20 +509,52 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const topCustomerEl = document.getElementById('chartTopCustomer');
     if (topCustomerEl) {
+        const topJenis = "{{ $topCustomerJenis ?? 'kedatangan' }}";
+        const topMode = "{{ $topCustomerMode ?? 'volume' }}";
+        const both = topJenis === 'keduanya';
+        const unit = topMode === 'koli' ? 'koli' : 'ton';
+
         new Chart(topCustomerEl, {
             type: 'bar',
             data: {
                 labels: @json($topCustomerLabels),
-                datasets: [{
-                    label: 'Top Customer',
+                datasets: both ? [
+                    {
+                        label: 'Kedatangan (' + unit + ')',
+                        data: @json($topCustomerKedatanganValues ?? []),
+                        backgroundColor: kaiNavy,
+                        minBarLength: 3,
+                    },
+                    {
+                        label: 'Muat (' + unit + ')',
+                        data: @json($topCustomerMuatValues ?? []),
+                        backgroundColor: kaiOrange,
+                        minBarLength: 3,
+                    }
+                ] : [{
+                    label: (topJenis === 'muat' ? 'Muat' : 'Kedatangan') + ' (' + unit + ')',
                     data: @json($topCustomerValues),
-                    backgroundColor: kaiNavyLight,
+                    backgroundColor: topJenis === 'muat' ? kaiOrange : kaiNavy,
+                    minBarLength: 3,
                 }]
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } }
+                scales: { y: { beginAtZero: true } },
+                plugins: {
+                    legend: { display: both, position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                const v = Number(ctx.raw || 0);
+                                if (topMode === 'koli') {
+                                    return ctx.dataset.label + ': ' + v.toLocaleString('id-ID');
+                                }
+                                return ctx.dataset.label + ': ' + v.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            }
+                        }
+                    }
+                }
             }
         });
     }

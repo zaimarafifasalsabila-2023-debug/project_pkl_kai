@@ -30,8 +30,13 @@
             </div>
 
             <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">Tanggal</label>
-                <input name="tanggal" value="{{ request('tanggal') }}" type="date" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Tanggal Awal</label>
+                <input name="tanggal_awal" value="{{ request('tanggal_awal') }}" type="date" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Tanggal Akhir</label>
+                <input name="tanggal_akhir" value="{{ request('tanggal_akhir') }}" type="date" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
             </div>
 
             <div>
@@ -98,9 +103,13 @@
     <!-- Data Table -->
 <div class="bg-white rounded-lg shadow-md overflow-hidden">
     <div class="p-6 border-b">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between flex-wrap gap-3">
             <h3 class="text-lg font-semibold text-gray-800">Data Angkutan</h3>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2 items-center justify-end">
+                <button type="button" id="bulkDeleteBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:opacity-90 transition duration-200">
+                    <i class="fas fa-trash mr-2"></i>
+                    Hapus Terpilih
+                </button>
                 <div class="relative">
                     <button type="button" id="exportBtn" class="px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90 transition duration-200 flex items-center">
                         <i class="fas fa-download mr-2"></i>
@@ -130,6 +139,9 @@
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <input id="selectAll" type="checkbox" class="h-4 w-4" />
+                    </th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jenis Angkutan</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
@@ -146,7 +158,10 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 @forelse ($data as $index => $item)
-                <tr class="hover:bg-gray-50">
+                <tr class="hover:bg-gray-50" data-row-id="{{ $item->id }}">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <input type="checkbox" class="row-select h-4 w-4" data-id="{{ $item->id }}" />
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ ($data->firstItem() ?? 0) + $index }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -160,7 +175,7 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $item->stasiun_asal_sa }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $item->stasiun_tujuan_sa ?? '-' }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $item->nama_ka_stasiun_asal }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $item->tanggal_keberangkatan_asal_ka ?? '-' }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ optional($item->tanggal_keberangkatan_asal_ka)->format('Y-m-d') ?? '-' }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $item->nomor_sarana ?? '-' }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ number_format($item->volume_berat_kai, 2) }} kg</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ $item->banyaknya_pengajuan }}</td>
@@ -177,20 +192,20 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button class="text-kai-orange hover:text-kai-orange-dark mr-3">
+                        <button type="button" data-action="view" data-id="{{ $item->id }}" class="row-action text-kai-orange hover:text-kai-orange-dark mr-3">
                             <i class="fas fa-eye"></i>
                         </button>
-                        <button class="text-kai-navy hover:text-kai-navy-dark mr-3">
+                        <button type="button" data-action="edit" data-id="{{ $item->id }}" class="row-action text-kai-navy hover:text-kai-navy-dark mr-3">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="text-red-600 hover:text-red-900">
+                        <button type="button" data-action="delete" data-id="{{ $item->id }}" class="row-action text-red-600 hover:text-red-900">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="12" class="px-6 py-4 text-center text-gray-500">
+                    <td colspan="13" class="px-6 py-4 text-center text-gray-500">
                         <i class="fas fa-inbox text-4xl mb-2"></i>
                         <p>Belum ada data angkutan</p>
                     </td>
@@ -213,13 +228,35 @@
     </div>
 </div>
 
+<!-- CRUD Modal -->
+<div id="crudModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-[9998]">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl">
+        <div class="px-6 py-4 border-b flex items-center justify-between">
+            <h3 id="crudModalTitle" class="text-lg font-semibold text-gray-800">Detail</h3>
+            <button type="button" id="crudModalClose" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="p-6">
+            <div id="crudModalBody"></div>
+            <div id="crudModalError" class="hidden mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded"></div>
+        </div>
+
+        <div class="px-6 py-4 border-t flex justify-end gap-2">
+            <button type="button" id="crudModalCancel" class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Tutup</button>
+            <button type="button" id="crudModalSave" class="hidden px-4 py-2 kai-orange-gradient text-white rounded-lg hover:opacity-90">Simpan</button>
+        </div>
+    </div>
+</div>
+
 <script>
 function exportData(format) {
     // Get current query parameters
     const params = new URLSearchParams(window.location.search);
     
     // Build download URL with current filters
-    const url = new URL("{{ route('preview.data.export.excel') }}", window.location.origin);
+    const url = new URL("/preview-data/export/excel", window.location.origin);
     
     // Add all current filter parameters to the export URL
     for (const [key, value] of params) {
@@ -238,7 +275,7 @@ function printTable() {
     const params = new URLSearchParams(window.location.search);
     
     // Build URL to fetch all data with current filters
-    const url = new URL("{{ route('preview.data') }}", window.location.origin);
+    const url = new URL("/preview-data", window.location.origin);
     
     // Add all current filter parameters
     for (const [key, value] of params) {
@@ -247,14 +284,17 @@ function printTable() {
     
     // Remove pagination parameter to get all data
     url.searchParams.delete('page');
+
+    url.searchParams.set('print', 'true');
     
     // Fetch all data
-    fetch(url.toString() + '&print=true', {
+    fetch(url.toString(), {
         method: 'GET',
         headers: {
             'Accept': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
-        }
+        },
+        credentials: 'same-origin'
     })
     .then(response => response.json())
     .then(responseData => {
@@ -354,7 +394,7 @@ function printTable() {
     })
     .catch(error => {
         console.error('Error fetching data for print:', error);
-        alert('Gagal mengambil data untuk cetak. Silakan coba lagi.');
+        alert('Gagal mengambil data untuk cetak. Silakan filter data dan coba lagi.');
     });
 }
 
@@ -380,5 +420,455 @@ document.getElementById('exportMenu').addEventListener('click', function() {
         this.classList.add('hidden');
     }, 100);
 });
+
+(function () {
+    const csrfToken = "{{ csrf_token() }}";
+    const modal = document.getElementById('crudModal');
+    const modalTitle = document.getElementById('crudModalTitle');
+    const modalBody = document.getElementById('crudModalBody');
+    const modalError = document.getElementById('crudModalError');
+    const btnClose = document.getElementById('crudModalClose');
+    const btnCancel = document.getElementById('crudModalCancel');
+    const btnSave = document.getElementById('crudModalSave');
+
+    if (!modal || !modalTitle || !modalBody || !modalError || !btnClose || !btnCancel || !btnSave) {
+        return;
+    }
+
+    let currentId = null;
+
+    const selectAll = document.getElementById('selectAll');
+    const bulkBtn = document.getElementById('bulkDeleteBtn');
+
+    function getSelectedIds() {
+        return Array.from(document.querySelectorAll('.row-select:checked'))
+            .map((el) => parseInt(el.getAttribute('data-id') || '0', 10))
+            .filter((n) => Number.isFinite(n) && n > 0);
+    }
+
+    function updateSelectAllState() {
+        if (!selectAll) return;
+        const boxes = Array.from(document.querySelectorAll('.row-select'));
+        const checked = boxes.filter((b) => b.checked);
+        if (boxes.length === 0) {
+            selectAll.checked = false;
+            selectAll.indeterminate = false;
+            return;
+        }
+        selectAll.checked = checked.length === boxes.length;
+        selectAll.indeterminate = checked.length > 0 && checked.length < boxes.length;
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            const boxes = document.querySelectorAll('.row-select');
+            boxes.forEach((b) => { b.checked = selectAll.checked; });
+            updateSelectAllState();
+        });
+    }
+    document.querySelectorAll('.row-select').forEach((b) => {
+        b.addEventListener('change', updateSelectAllState);
+    });
+
+    function showModal() {
+        const main = document.querySelector('main');
+        if (main && modal && modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('overflow-hidden');
+    }
+
+    function hideModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        currentId = null;
+        modalBody.innerHTML = '';
+        modalError.classList.add('hidden');
+        modalError.textContent = '';
+        btnSave.classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+
+    function setError(msg) {
+        modalError.classList.remove('hidden');
+        modalError.textContent = String(msg || 'Terjadi kesalahan');
+    }
+
+    btnClose.addEventListener('click', hideModal);
+    btnCancel.addEventListener('click', hideModal);
+    modal.addEventListener('click', function (e) {
+        if (e.target === modal) hideModal();
+    });
+
+    async function fetchRow(id) {
+        const url = new URL("/preview-data/" + String(id), window.location.origin);
+        const res = await fetch(url.toString(), {
+            method: 'GET',
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        });
+        if (!res.ok) {
+            throw new Error('Gagal mengambil data');
+        }
+        const json = await res.json();
+        if (!json || !json.data) {
+            throw new Error('Data tidak ditemukan');
+        }
+        return json.data;
+    }
+
+    function buildDetailHtml(data) {
+        const rows = [
+            ['Jenis', data.jenis_angkutan],
+            ['Customer', data.nama_customer],
+            ['Stasiun Asal', data.stasiun_asal_sa],
+            ['Stasiun Tujuan', data.stasiun_tujuan_sa],
+            ['Nama KA', data.nama_ka_stasiun_asal],
+            ['Tanggal', data.tanggal_keberangkatan_asal_ka],
+            ['No. Sarana', data.nomor_sarana],
+            ['Volume (kg)', data.volume_berat_kai],
+            ['Pengajuan', data.banyaknya_pengajuan],
+            ['Status', data.status_sa]
+        ];
+
+        return `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                ${rows.map(([k, v]) => `
+                    <div>
+                        <div class="text-xs text-gray-500">${k}</div>
+                        <div class="text-sm text-gray-900 font-medium">${(v === null || v === undefined || v === '') ? '-' : String(v)}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function buildEditHtml(data) {
+        return `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Customer</label>
+                    <input id="f_nama_customer" value="${data.nama_customer || ''}" class="w-full h-10 px-3 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Nama KA</label>
+                    <input id="f_nama_ka" value="${data.nama_ka_stasiun_asal || ''}" class="w-full h-10 px-3 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Stasiun Asal</label>
+                    <input id="f_stasiun_asal" value="${data.stasiun_asal_sa || ''}" class="w-full h-10 px-3 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Stasiun Tujuan</label>
+                    <input id="f_stasiun_tujuan" value="${data.stasiun_tujuan_sa || ''}" class="w-full h-10 px-3 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Tanggal</label>
+                    <input id="f_tanggal" type="date" value="${data.tanggal_keberangkatan_asal_ka || ''}" class="w-full h-10 px-3 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">No. Sarana</label>
+                    <input id="f_nomor_sarana" value="${data.nomor_sarana || ''}" class="w-full h-10 px-3 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Volume (kg)</label>
+                    <input id="f_volume" type="number" step="0.01" value="${(data.volume_berat_kai === null || data.volume_berat_kai === undefined) ? '' : String(data.volume_berat_kai)}" class="w-full h-10 px-3 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Pengajuan</label>
+                    <input id="f_pengajuan" type="number" value="${(data.banyaknya_pengajuan === null || data.banyaknya_pengajuan === undefined) ? '' : String(data.banyaknya_pengajuan)}" class="w-full h-10 px-3 border border-gray-300 rounded-lg" />
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                    <input id="f_status" value="${data.status_sa || ''}" class="w-full h-10 px-3 border border-gray-300 rounded-lg" />
+                </div>
+            </div>
+        `;
+    }
+
+    async function updateRow(id) {
+        const url = new URL("/preview-data/" + String(id), window.location.origin);
+        const payload = {
+            nama_customer: (document.getElementById('f_nama_customer') || {}).value || null,
+            nama_ka_stasiun_asal: (document.getElementById('f_nama_ka') || {}).value || null,
+            stasiun_asal_sa: (document.getElementById('f_stasiun_asal') || {}).value || null,
+            stasiun_tujuan_sa: (document.getElementById('f_stasiun_tujuan') || {}).value || null,
+            tanggal_keberangkatan_asal_ka: (document.getElementById('f_tanggal') || {}).value || null,
+            nomor_sarana: (document.getElementById('f_nomor_sarana') || {}).value || null,
+            volume_berat_kai: (document.getElementById('f_volume') || {}).value || null,
+            banyaknya_pengajuan: (document.getElementById('f_pengajuan') || {}).value || null,
+            status_sa: (document.getElementById('f_status') || {}).value || null,
+        };
+
+        const res = await fetch(url.toString(), {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(payload)
+        });
+
+        const json = await res.json();
+        if (!res.ok || !json || json.success !== true) {
+            throw new Error('Gagal menyimpan perubahan');
+        }
+        
+    }
+
+    async function deleteRow(id) {
+        const url = new URL("/preview-data/" + String(id), window.location.origin);
+        const res = await fetch(url.toString(), {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!res.ok || !json || json.success !== true) {
+            throw new Error('Gagal menghapus data');
+        }
+    }
+
+    async function bulkDelete(ids) {
+        const url = new URL("/preview-data/bulk-delete", window.location.origin);
+        const res = await fetch(url.toString(), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ ids })
+        });
+        const json = await res.json();
+        if (!res.ok || !json || json.success !== true) {
+            throw new Error((json && json.message) ? json.message : 'Gagal menghapus data');
+        }
+    }
+
+    document.querySelectorAll('.row-action').forEach((btn) => {
+        btn.addEventListener('click', async function () {
+            const id = btn.getAttribute('data-id');
+            const action = btn.getAttribute('data-action');
+            if (!id || !action) return;
+
+            modalError.classList.add('hidden');
+            modalError.textContent = '';
+            currentId = id;
+
+            if (action === 'delete') {
+                const ok = confirm('Yakin ingin menghapus data ini?');
+                if (!ok) return;
+                try {
+                    await deleteRow(id);
+                    const tr = document.querySelector('tr[data-row-id="' + String(id) + '"]');
+                    if (tr) tr.remove();
+                    updateSelectAllState();
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('success', 'Data berhasil dihapus.');
+                    }
+                } catch (e) {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('error', e.message || String(e));
+                    } else {
+                        alert(e.message || String(e));
+                    }
+                }
+                return;
+            }
+
+            try {
+                const data = await fetchRow(id);
+                if (action === 'view') {
+                    modalTitle.textContent = 'Detail Data';
+                    modalBody.innerHTML = buildDetailHtml(data);
+                    btnSave.classList.add('hidden');
+                    showModal();
+                    return;
+                }
+
+                if (action === 'edit') {
+                    modalTitle.textContent = 'Edit Data';
+                    modalBody.innerHTML = buildEditHtml(data);
+                    btnSave.classList.remove('hidden');
+                    showModal();
+                    return;
+                }
+            } catch (e) {
+                modalTitle.textContent = 'Error';
+                modalBody.innerHTML = '';
+                setError(e.message || String(e));
+                showModal();
+            }
+        });
+    });
+
+    btnSave.addEventListener('click', async function () {
+        if (!currentId) return;
+        modalError.classList.add('hidden');
+        modalError.textContent = '';
+        try {
+            await updateRow(currentId);
+            if (typeof window.showToast === 'function') {
+                window.showToast('success', 'Data berhasil diperbarui.');
+            }
+            // Refresh the row in place without full page reload
+            const updated = await fetchRow(currentId);
+            const tr = document.querySelector('tr[data-row-id="' + String(currentId) + '"]');
+            if (tr && updated) {
+                // Rebuild row cells using the same structure as the server-rendered table
+                const jenisBadge = updated.jenis_angkutan === 'kedatangan' 
+                    ? '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">' + (updated.jenis_angkutan.charAt(0).toUpperCase() + updated.jenis_angkutan.slice(1)) + '</span>'
+                    : '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">' + (updated.jenis_angkutan.charAt(0).toUpperCase() + updated.jenis_angkutan.slice(1)) + '</span>';
+                const statusBadge = (() => {
+                    const s = (updated.status_sa || '').toUpperCase();
+                    if (s === 'BAB') return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">' + updated.status_sa + '</span>';
+                    if (s === 'BKD') return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">' + updated.status_sa + '</span>';
+                    if (s === 'SA') return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">' + updated.status_sa + '</span>';
+                    if (s === 'BATAL SA') return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">' + updated.status_sa + '</span>';
+                    if (s === 'DRAF') return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">' + updated.status_sa + '</span>';
+                    return '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">' + (updated.status_sa ?? '-') + '</span>';
+                })();
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <input type="checkbox" class="row-select h-4 w-4" data-id="${updated.id}" />
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${tr.querySelector('td:nth-child(2)').textContent}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${jenisBadge}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${updated.nama_customer ?? '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${updated.stasiun_asal_sa ?? '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${updated.stasiun_tujuan_sa ?? '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${updated.nama_ka_stasiun_asal ?? '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${updated.tanggal_keberangkatan_asal_ka ?? '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${updated.nomor_sarana ?? '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${parseFloat(updated.volume_berat_kai).toLocaleString('id-ID')} kg</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${updated.banyaknya_pengajuan ?? '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${statusBadge}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button type="button" data-action="view" data-id="${updated.id}" class="row-action text-kai-orange hover:text-kai-orange-dark mr-3">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button type="button" data-action="edit" data-id="${updated.id}" class="row-action text-kai-navy hover:text-kai-navy-dark mr-3">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="button" data-action="delete" data-id="${updated.id}" class="row-action text-red-600 hover:text-red-900">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                // Re-attach event listeners to new buttons
+                tr.querySelectorAll('.row-action').forEach(btn => {
+                    btn.addEventListener('click', function (e) {
+                        const id = btn.getAttribute('data-id');
+                        const action = btn.getAttribute('data-action');
+                        if (!id || !action) return;
+
+                        modalError.classList.add('hidden');
+                        modalError.textContent = '';
+                        currentId = id;
+
+                        if (action === 'delete') {
+                            const ok = confirm('Yakin ingin menghapus data ini?');
+                            if (!ok) return;
+                            // reuse existing delete logic
+                            (async () => {
+                                try {
+                                    await deleteRow(id);
+                                    const trDel = document.querySelector('tr[data-row-id="' + String(id) + '"]');
+                                    if (trDel) trDel.remove();
+                                    updateSelectAllState();
+                                    if (typeof window.showToast === 'function') {
+                                        window.showToast('success', 'Data berhasil dihapus.');
+                                    }
+                                } catch (e) {
+                                    if (typeof window.showToast === 'function') {
+                                        window.showToast('error', e.message || String(e));
+                                    }
+                                }
+                            })();
+                            return;
+                        }
+
+                        (async () => {
+                            try {
+                                const data = await fetchRow(id);
+                                if (action === 'view') {
+                                    modalTitle.textContent = 'Detail Data';
+                                    modalBody.innerHTML = buildDetailHtml(data);
+                                    btnSave.classList.add('hidden');
+                                    showModal();
+                                    return;
+                                }
+
+                                if (action === 'edit') {
+                                    modalTitle.textContent = 'Edit Data';
+                                    modalBody.innerHTML = buildEditHtml(data);
+                                    btnSave.classList.remove('hidden');
+                                    showModal();
+                                    return;
+                                }
+                            } catch (e) {
+                                modalTitle.textContent = 'Error';
+                                modalBody.innerHTML = '';
+                                setError(e.message || String(e));
+                                showModal();
+                            }
+                        })();
+                    });
+                });
+                tr.querySelector('.row-select').addEventListener('change', updateSelectAllState);
+            }
+            hideModal();
+        } catch (e) {
+            setError(e.message || String(e));
+        }
+    });
+
+    if (bulkBtn) {
+        bulkBtn.addEventListener('click', async function () {
+            const ids = getSelectedIds();
+            if (!ids.length) {
+                if (typeof window.showToast === 'function') {
+                    window.showToast('warning', 'Pilih minimal 1 data untuk dihapus.');
+                }
+                return;
+            }
+            const ok = confirm('Yakin ingin menghapus ' + String(ids.length) + ' data terpilih?');
+            if (!ok) return;
+
+            try {
+                await bulkDelete(ids);
+                ids.forEach((id) => {
+                    const tr = document.querySelector('tr[data-row-id="' + String(id) + '"]');
+                    if (tr) tr.remove();
+                });
+                if (selectAll) {
+                    selectAll.checked = false;
+                    selectAll.indeterminate = false;
+                }
+                if (typeof window.showToast === 'function') {
+                    window.showToast('success', 'Data terpilih berhasil dihapus.');
+                }
+            } catch (e) {
+                if (typeof window.showToast === 'function') {
+                    window.showToast('error', e.message || String(e));
+                } else {
+                    alert(e.message || String(e));
+                }
+            }
+        });
+    }
+})();
 </script>
 @endsection
