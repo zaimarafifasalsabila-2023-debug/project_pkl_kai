@@ -245,8 +245,8 @@
                 <label class="block text-xs font-medium text-gray-500 mb-1">Jenis</label>
                 <select name="top_customer_jenis" class="w-full sm:w-40 h-10 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-kai-orange focus:border-transparent">
                     <option value="keduanya" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'keduanya')>Keduanya</option>
-                    <option value="kedatangan" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'kedatangan')>Kedatangan (Asal)</option>
-                    <option value="muat" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'muat')>Muat (Tujuan)</option>
+                    <option value="kedatangan" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'kedatangan')>Kedatangan</option>
+                    <option value="muat" @selected(request('top_customer_jenis', $topCustomerJenis ?? 'kedatangan') === 'muat')>Muat</option>
                 </select>
             </div>
 

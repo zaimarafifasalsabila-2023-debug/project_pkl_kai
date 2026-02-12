@@ -1485,9 +1485,9 @@ class DashboardController extends Controller
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
                 ->whereNotNull($kedField)
-                ->select($kedField . ' as stasiun')
+                ->selectRaw('UPPER(TRIM(' . $kedField . ')) as stasiun')
                 ->selectRaw($metricSelect)
-                ->groupBy($kedField)
+                ->groupBy('stasiun')
                 ->get();
 
             $muatRows = Angkutan::query()
@@ -1496,9 +1496,9 @@ class DashboardController extends Controller
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
                 ->whereNotNull($muatField)
-                ->select($muatField . ' as stasiun')
+                ->selectRaw('UPPER(TRIM(' . $muatField . ')) as stasiun')
                 ->selectRaw($metricSelect)
-                ->groupBy($muatField)
+                ->groupBy('stasiun')
                 ->get();
 
             $merged = [];
@@ -1544,14 +1544,14 @@ class DashboardController extends Controller
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
                 ->whereNotNull($groupByField)
-                ->select($groupByField)
+                ->selectRaw('UPPER(TRIM(' . $groupByField . ')) as stasiun')
                 ->selectRaw('SUM(volume_berat_kai) as total_volume, SUM(banyaknya_pengajuan) as total_koli')
-                ->groupBy($groupByField)
+                ->groupBy('stasiun')
                 ->orderByDesc($orderField)
                 ->limit(15)
                 ->get();
 
-            $topCustomerLabels = $topCustomerQuery->pluck($groupByField)->values()->all();
+            $topCustomerLabels = $topCustomerQuery->pluck('stasiun')->values()->all();
             if ($topCustomerMode === 'volume') {
                 $topCustomerValues = $topCustomerQuery->pluck('total_volume')->map(fn ($v) => (float) (((float) $v) / 1000))->values()->all();
             } else {
