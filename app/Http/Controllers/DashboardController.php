@@ -1475,6 +1475,9 @@ class DashboardController extends Controller
             $kedField = 'stasiun_tujuan_sa';
             $muatField = 'stasiun_tujuan_sa';
 
+            $kedStExpr = 'UPPER(TRIM(' . $kedField . '))';
+            $muatStExpr = 'UPPER(TRIM(' . $muatField . '))';
+
             $metricSelect = $topCustomerMode === 'koli'
                 ? 'SUM(banyaknya_pengajuan) as total_metric'
                 : 'SUM(volume_berat_kai) as total_metric';
@@ -1485,9 +1488,10 @@ class DashboardController extends Controller
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
                 ->whereNotNull($kedField)
-                ->selectRaw('UPPER(TRIM(' . $kedField . ')) as stasiun')
+                ->whereRaw('TRIM(' . $kedField . ') <> ""')
+                ->selectRaw($kedStExpr . ' as stasiun')
                 ->selectRaw($metricSelect)
-                ->groupBy('stasiun')
+                ->groupByRaw($kedStExpr)
                 ->get();
 
             $muatRows = Angkutan::query()
@@ -1496,9 +1500,10 @@ class DashboardController extends Controller
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
                 ->whereNotNull($muatField)
-                ->selectRaw('UPPER(TRIM(' . $muatField . ')) as stasiun')
+                ->whereRaw('TRIM(' . $muatField . ') <> ""')
+                ->selectRaw($muatStExpr . ' as stasiun')
                 ->selectRaw($metricSelect)
-                ->groupBy('stasiun')
+                ->groupByRaw($muatStExpr)
                 ->get();
 
             $merged = [];
@@ -1536,6 +1541,8 @@ class DashboardController extends Controller
         } else {
             $groupByField = 'stasiun_tujuan_sa';
 
+            $stExpr = 'UPPER(TRIM(' . $groupByField . '))';
+
             $orderField = $topCustomerMode === 'koli' ? 'total_koli' : 'total_volume';
 
             $topCustomerQuery = Angkutan::query()
@@ -1544,9 +1551,10 @@ class DashboardController extends Controller
                 ->whereYear('tanggal_keberangkatan_asal_ka', $topCustomerTahun)
                 ->whereMonth('tanggal_keberangkatan_asal_ka', $topCustomerBulan)
                 ->whereNotNull($groupByField)
-                ->selectRaw('UPPER(TRIM(' . $groupByField . ')) as stasiun')
+                ->whereRaw('TRIM(' . $groupByField . ') <> ""')
+                ->selectRaw($stExpr . ' as stasiun')
                 ->selectRaw('SUM(volume_berat_kai) as total_volume, SUM(banyaknya_pengajuan) as total_koli')
-                ->groupBy('stasiun')
+                ->groupByRaw($stExpr)
                 ->orderByDesc($orderField)
                 ->limit(15)
                 ->get();
